@@ -1,0 +1,144 @@
+{% extends "game/base.html" %}
+{% block title %}{{ team.name }} — console{% endblock %}
+{% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
+{% block content %}
+<div id="console" data-state-url="{{ state_url }}">
+  <h1>{{ team.name }}</h1>
+  <p class="sub">
+    {% for m in team.members.all %}<span class="chip">{{ m.display_name|default:"member" }}</span>{% endfor %}
+    <span class="note">({{ team.member_count }} / {{ game.max_team_size }} seats)</span>
+  </p>
+
+  <div class="grid stats">
+    <div class="stat"><div class="label">Round budget left</div><div class="value" id="s-budget">{{ team.budget_remaining }}</div></div>
+    <div class="stat"><div class="label">Cumulative profit</div><div class="value" id="s-profit">{{ team.cumulative_profit }}</div></div>
+    <div class="stat"><div class="label">Bids this round</div><div class="value" id="s-bid">—</div></div>
+  </div>
+
+  <div class="card">
+    <h2>This round</h2>
+    <div id="round-box">
+      {% if current_round %}
+        <p class="note">Round {{ current_round.number }} —
+           <span class="status {{ current_round.status }}">{{ current_round.get_status_display }}</span>
+           · fresh budget of {{ game.starting_budget }} to spread across
+           {{ current_round.keywords.count }} keyword{{ current_round.keywords.count|pluralize }}</p>
+      {% else %}
+        <p class="note">Waiting for the facilitator to open the first round.</p>
+      {% endif %}
+    </div>
+
+    {% if current_round and current_round.status == 'open' %}
+      <form method="post" action="{% url 'game:submit_bid' code=game.code %}">
+        {% csrf_token %}
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>Keyword</th><th></th><th class="num" style="width:180px">Max bid per click</th></tr></thead>
+          <tbody>
+            {% for kb in keyword_bids %}
+              <tr>
+                <td><span class="kw">{{ kb.keyword.label }}</span></td>
+                <td><span class="chip">{{ kb.keyword.asset_class }}</span></td>
+                <td class="num">
+                  <input type="number" step="0.01" min="{{ game.min_bid }}" name="bid_{{ kb.keyword.id }}"
+                         value="{% if kb.bid %}{{ kb.bid.max_bid }}{% endif %}"
+                         placeholder="no bid" style="max-width:140px">
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table></div>
+        <div style="margin-top:16px"><button type="submit">Submit / update bids</button></div>
+        <p class="note">Minimum bid {{ game.min_bid }} per click. Leave a keyword blank to sit it out.
+           Any teammate can submit while the round is open — the latest submission wins.
+           Your bids across all keywords draw from the same {{ game.starting_budget }} round budget.</p>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Your last result</h2>
+    <div id="your-result"><p class="note">Results appear here once the round is revealed.</p></div>
+  </div>
+
+  <div class="card">
+    <h2>Your round-by-round</h2>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>Round</th><th>Keywords</th><th class="num">Spend</th>
+        <th class="num">Revenue</th><th class="num">Profit</th><th class="num">Cumulative</th></tr></thead>
+      <tbody id="hist-body"><tr><td colspan="6" class="note">No revealed rounds yet.</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>Leaderboard</h2>
+    <table>
+      <thead><tr><th>#</th><th>Team</th><th class="num">Profit</th><th class="num">Budget</th></tr></thead>
+      <tbody id="lb-body"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const root = document.getElementById("console");
+  const myTeam = "{{ team.name|escapejs }}";
+  function render(s){
+    if (s.you){
+      document.getElementById("s-budget").textContent = money(s.you.budget_remaining);
+      document.getElementById("s-profit").textContent = money(s.you.cumulative_profit);
+      const bids = (s.you.current_bids || []).filter(b => b.amount != null);
+      document.getElementById("s-bid").textContent =
+        bids.length ? bids.length + " / " + (s.you.current_bids || []).length + " keywords" : "—";
+      const yr = document.getElementById("your-result");
+      if (s.you.last_result){
+        const lr = s.you.last_result;
+        const cls = lr.profit >= 0 ? "up" : "down";
+        let html = `<p>Round total: spend ${money(lr.spend)}, revenue ${money(lr.revenue)}, `
+          + `profit <span class="${cls}">${money(lr.profit)}</span>.</p>`;
+        html += `<div style="overflow-x:auto"><table><thead><tr><th>Keyword</th><th>Pos</th>`
+          + `<th class="num">Clicks</th><th class="num">Spend</th><th class="num">Revenue</th>`
+          + `<th class="num">Profit</th><th class="num">ROAS</th></tr></thead><tbody>`;
+        lr.rows.forEach(r => {
+          const c = r.profit >= 0 ? "up" : "down";
+          html += `<tr><td>${r.keyword}</td><td>${r.position || "—"}</td>`
+            + `<td class="num">${r.clicks}</td><td class="num">${money(r.spend)}</td>`
+            + `<td class="num">${money(r.revenue)}</td><td class="num ${c}">${money(r.profit)}</td>`
+            + `<td class="num">${r.roas == null ? "—" : r.roas + "x"}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        yr.innerHTML = html;
+      } else {
+        yr.innerHTML = `<p class="note">Results appear here once the round is revealed.</p>`;
+      }
+      // round-by-round history table
+      const hb = document.getElementById("hist-body");
+      if (s.you.history && s.you.history.length){
+        hb.innerHTML = "";
+        s.you.history.forEach(r => {
+          const cls = r.profit >= 0 ? "up" : "down";
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${r.round}</td><td>${r.keyword}</td>`
+            + `<td class="num">${money(r.spend)}</td><td class="num">${money(r.revenue)}</td>`
+            + `<td class="num ${cls}">${money(r.profit)}</td><td class="num">${money(r.cumulative)}</td>`;
+          hb.appendChild(tr);
+        });
+      } else {
+        hb.innerHTML = '<tr><td colspan="6" class="note">No revealed rounds yet.</td></tr>';
+      }
+    }
+    const body = document.getElementById("lb-body");
+    body.innerHTML = "";
+    (s.leaderboard || []).forEach((t, i) => {
+      const tr = document.createElement("tr");
+      if (t.team === myTeam) tr.className = "you";
+      const cls = t.cumulative_profit >= 0 ? "up" : "down";
+      tr.innerHTML = `<td>${i+1}</td><td>${t.team}${t.is_bot ? ' <span class="chip bot">bot</span>' : ''}</td>`
+        + `<td class="num ${cls}">${money(t.cumulative_profit)}</td>`
+        + `<td class="num">${money(t.budget_remaining)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+  startPolling(root.dataset.stateUrl, render, 2500);
+</script>
+{% endblock %}

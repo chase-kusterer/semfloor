@@ -1,0 +1,14 @@
+# --- SEM Trading Floor: Python dependencies ---
+Django>=5.0,<5.2
+# Parses DATABASE_URL (e.g. postgres://...) into Django's DATABASES setting.
+dj-database-url>=2.1
+# PostgreSQL driver (psycopg 3). Use psycopg[binary] so no local build tools are needed.
+psycopg[binary]>=3.1
+# Loads a local .env file into the environment during development.
+python-dotenv>=1.0
+# Production WSGI server.
+gunicorn>=21.2
+# Serves static files in production (no separate web server / CDN required).
+whitenoise>=6.6
+# NOTE (live-ticker sprint): add `channels`, `channels-redis`, and `daphne`/`uvicorn`
+# here when we move from polling to WebSockets. Nothing else needs to change.

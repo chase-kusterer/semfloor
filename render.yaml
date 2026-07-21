@@ -1,0 +1,29 @@
+# One-click deploy blueprint for Render (https://render.com).
+# In Render: New > Blueprint, point at this repo. Creates a Postgres DB + web service.
+databases:
+  - name: semfloor-db
+    plan: free
+
+services:
+  - type: web
+    name: semfloor
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+    preDeployCommand: "python manage.py migrate --noinput"
+    startCommand: "gunicorn semfloor.wsgi"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: semfloor-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true          # Render generates a strong secret
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false                  # set to https://<your-service>.onrender.com after first deploy
+      - key: WEB_CONCURRENCY
+        value: "2"

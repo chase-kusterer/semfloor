@@ -1,0 +1,49 @@
+{% extends "game/base.html" %}
+{% block title %}Setup — SEM Trading Floor{% endblock %}
+{% block content %}
+  <h1>Game setup</h1>
+  <p class="sub">Create a game, add keywords, build the round schedule, launch. No Django admin required.</p>
+
+  <div class="grid two">
+    <div class="card">
+      <h2>Create a new game</h2>
+      <form method="post" action="{% url 'game:setup_home' %}">
+        {% csrf_token %}
+        <label for="name">Game name</label>
+        <input type="text" id="name" name="name" value="SEM Trading Floor" required>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1"><label for="starting_budget">Budget per round</label>
+            <input type="number" id="starting_budget" name="starting_budget" step="100" value="10000"></div>
+          <div style="flex:1"><label for="max_team_size">Max team size</label>
+            <input type="number" id="max_team_size" name="max_team_size" min="1" value="4"></div>
+        </div>
+        <div style="margin-top:16px"><button type="submit">Create game</button></div>
+        <p class="note">Every team receives this budget fresh at the start of each round.</p>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Your games</h2>
+      {% if games %}
+        <table>
+          <thead><tr><th>Name</th><th>Code</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for g in games %}
+              <tr>
+                <td>{{ g.name }}</td>
+                <td class="mono">{{ g.code }}</td>
+                <td><span class="status {{ g.status }}">{{ g.get_status_display }}</span></td>
+                <td style="text-align:right">
+                  <a class="btn secondary" href="{% url 'game:setup_game' code=g.code %}">Setup</a>
+                  <a class="btn secondary" href="{% url 'game:facilitator' code=g.code %}">Run</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="note">No games yet — create your first one on the left.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

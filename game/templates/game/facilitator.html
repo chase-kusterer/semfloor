@@ -1,0 +1,131 @@
+{% extends "game/base.html" %}
+{% block title %}Facilitator — {{ game.name }}{% endblock %}
+{% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
+{% block content %}
+  <h1>Facilitator dashboard</h1>
+  <p class="sub">{{ game.name }} — status <span class="status {{ game.status }}">{{ game.get_status_display }}</span>
+     &nbsp;·&nbsp; <a href="{% url 'game:setup_game' code=game.code %}">Game setup</a></p>
+
+  <div class="card">
+    <h2>Share with students</h2>
+    <p>Post this link on your course page — students click it, enter their name, and pick a team. No accounts.</p>
+    <p><a href="{{ join_url }}" class="mono" id="join-link">{{ join_url }}</a>
+       <button type="button" class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('join-link').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy link',1500)})">Copy link</button></p>
+    <p><a class="btn" href="{% url 'game:board' code=game.code %}">Open big board</a>
+       <a class="btn secondary" href="{% url 'game:recap' code=game.code %}">Open recap</a></p>
+  </div>
+
+  <div class="grid stats">
+    <div class="stat"><div class="label">Join code</div><div class="value">{{ game.code }}</div></div>
+    <div class="stat"><div class="label">Rounds</div><div class="value">{{ rounds|length }}</div></div>
+    <div class="stat"><div class="label">Ad slots</div><div class="value">{{ game.ad_slots }}</div></div>
+    <div class="stat"><div class="label">Max team size</div><div class="value">{{ game.max_team_size }}</div></div>
+    <div class="stat"><div class="label">Budget / round</div><div class="value">{{ game.starting_budget }}</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Round controls</h2>
+    {% if current_round %}
+      <p>Current: <strong>Round {{ current_round.number }}</strong>
+         <span class="status {{ current_round.status }}">{{ current_round.get_status_display }}</span><br>
+         {% for k in current_round.keywords.all %}<span class="chip">{{ k.label }}</span>{% endfor %}</p>
+    {% else %}
+      <p class="note">No round open yet. Opening a round tops every team's budget back up to {{ game.starting_budget }}.</p>
+    {% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      {# The lifecycle is a strict sequence; each button enables only at the right step. #}
+      <form method="post" action="{% url 'game:fac_open_round' code=game.code %}">{% csrf_token %}
+        <button type="submit" {% if current_round and current_round.status != 'revealed' %}disabled{% endif %}>Open next round</button></form>
+      <form method="post" action="{% url 'game:fac_close_round' code=game.code %}">{% csrf_token %}
+        <button type="submit" {% if not current_round or current_round.status != 'open' %}disabled{% endif %}>Close bids</button></form>
+      <form method="post" action="{% url 'game:fac_resolve_round' code=game.code %}">{% csrf_token %}
+        <button type="submit" {% if not current_round or current_round.status != 'closed' %}disabled{% endif %}>Resolve</button></form>
+      <form method="post" action="{% url 'game:fac_reveal_round' code=game.code %}">{% csrf_token %}
+        <button type="submit" {% if not current_round or current_round.status != 'resolved' %}disabled{% endif %}>Reveal on board</button></form>
+    </div>
+  </div>
+
+  {% if current_results %}
+    <div class="card">
+      <h2>Round {{ current_round.number }} results</h2>
+      <table>
+        <thead><tr><th>Keyword</th><th>Pos</th><th>Team</th><th class="num">CPC</th><th class="num">Clicks</th>
+          <th class="num">Spend</th><th class="num">Revenue</th><th class="num">Profit</th><th class="num">ROAS</th></tr></thead>
+        <tbody>
+          {% for r in current_results %}
+            <tr>
+              <td>{{ r.keyword.label }}</td>
+              <td>{% if r.position %}{{ r.position }}{% else %}—{% endif %}</td>
+              <td>{{ r.team.name }}{% if r.team.is_bot %} <span class="chip bot">bot</span>{% endif %}</td>
+              <td class="num">{{ r.actual_cpc }}</td><td class="num">{{ r.clicks }}</td>
+              <td class="num">{{ r.spend }}</td><td class="num">{{ r.revenue }}</td>
+              <td class="num {% if r.profit >= 0 %}up{% else %}down{% endif %}">{{ r.profit }}</td>
+              <td class="num">{% if r.roas != None %}{{ r.roas }}x{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  <div class="grid two">
+    <div class="card">
+      <h2>Market event</h2>
+      <p class="note">Fire onto the current round before resolving it. Applies to all of the round's keywords.</p>
+      <form method="post" action="{% url 'game:fac_event' code=game.code %}" style="display:flex;gap:8px">
+        {% csrf_token %}
+        <select name="event_key" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:8px">
+          {% for key, title in event_choices %}<option value="{{ key }}">{{ title }}</option>{% endfor %}
+        </select>
+        <button type="submit">Fire</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Bots</h2>
+      <form method="post" action="{% url 'game:fac_bots' code=game.code %}">
+        {% csrf_token %}
+        <div style="display:flex;gap:12px">
+          <div style="flex:1"><label for="count">How many</label>
+            <input type="number" id="count" name="count" min="0" value="{{ bots|length }}"></div>
+          <div style="flex:1"><label for="aggr">Aggressiveness</label>
+            <input type="number" id="aggr" name="aggressiveness" step="0.05" min="0" value="1.0"></div>
+        </div>
+        <div style="margin-top:12px"><button type="submit">Apply</button></div>
+      </form>
+      <p class="note" style="margin-top:8px">Current bots:
+        {% for b in bots %}<span class="chip bot">{{ b.name }}</span>{% empty %}none{% endfor %}</p>
+    </div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h2>Teams ({{ teams|length }})</h2>
+      {% if teams %}
+        {% for t in teams %}
+          <p><strong>{{ t.obj.name }}</strong> <span class="note">{{ t.count }} / {{ game.max_team_size }}</span><br>
+             {% for m in t.members %}<span class="chip">{{ m.display_name|default:"member" }}</span>{% endfor %}</p>
+        {% endfor %}
+      {% else %}<p class="note">No teams have joined yet.</p>{% endif %}
+    </div>
+    <div class="card">
+      <h2>Rounds</h2>
+      <table>
+        <thead><tr><th>#</th><th>Keywords</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for r in rounds %}
+            <tr><td>{{ r.number }}</td>
+                <td>{% for k in r.keywords.all %}<span class="chip">{{ k.label }}</span>{% endfor %}</td>
+                <td><span class="status {{ r.status }}">{{ r.get_status_display }}</span></td></tr>
+          {% empty %}
+            <tr><td colspan="3" class="note">No rounds yet — build the schedule on the
+              <a href="{% url 'game:setup_game' code=game.code %}">Setup page</a>.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <form method="post" action="{% url 'game:fac_reset' code=game.code %}"
+            onsubmit="return confirm('Reset all progress? Teams and keywords are kept.');" style="margin-top:8px">
+        {% csrf_token %}<button type="submit" class="secondary">Reset game</button></form>
+    </div>
+  </div>
+{% endblock %}

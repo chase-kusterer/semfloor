@@ -1,0 +1,24 @@
+{% extends "game/base.html" %}
+{% block title %}Join — SEM Trading Floor{% endblock %}
+{% block content %}
+  <h1>Join the trading floor</h1>
+  {% if game %}
+    <p class="sub">You're joining <strong>{{ game.name }}</strong>. Just enter your name to take a seat.</p>
+  {% else %}
+    <p class="sub">Enter the game code your instructor shared, and the name you want on your seat.</p>
+  {% endif %}
+  <div class="card" style="max-width:440px">
+    <form method="post" action="{% url 'game:join_submit' %}">
+      {% csrf_token %}
+      {% if game %}
+        <input type="hidden" name="code" value="{{ game.code }}">
+      {% else %}
+        <label for="code">Game code</label>
+        <input type="text" id="code" name="code" autocomplete="off" autocapitalize="characters" required>
+      {% endif %}
+      <label for="display_name">Your name</label>
+      <input type="text" id="display_name" name="display_name" autocomplete="off" required autofocus>
+      <div style="margin-top:16px"><button type="submit">Continue</button></div>
+    </form>
+  </div>
+{% endblock %}

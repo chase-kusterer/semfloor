@@ -1,0 +1,20 @@
+# Local PostgreSQL for development. Run: `docker compose up -d`
+# Credentials here must match DATABASE_URL in your .env file.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: semfloor
+      POSTGRES_PASSWORD: semfloor
+      POSTGRES_DB: semfloor
+    ports:
+      - "5432:5432"
+    volumes:
+      - semfloor_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U semfloor"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+volumes:
+  semfloor_pgdata:

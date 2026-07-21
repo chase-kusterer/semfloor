@@ -1,0 +1,100 @@
+{% extends "game/base.html" %}
+{% block title %}Recap — {{ game.name }}{% endblock %}
+{% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
+{% block content %}
+<div id="recap" data-state-url="{{ state_url }}" class="board-wrap" style="margin:0 auto">
+  <h1>{{ game.name }} — recap</h1>
+  <p class="sub">Cumulative profit &amp; loss across revealed rounds. Fills in live as each round is revealed.</p>
+
+  <div class="card">
+    <h2>P&amp;L over rounds</h2>
+    <div id="pnl-chart"><p class="note">Waiting for the first revealed round…</p></div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h2>Final standings</h2>
+      <table>
+        <thead><tr><th>#</th><th>Team</th><th class="num">Revenue</th><th class="num">Spend</th><th class="num">Profit</th></tr></thead>
+        <tbody id="standings-body"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Profit by round</h2>
+      <div style="overflow-x:auto"><table id="matrix"><thead id="matrix-head"></thead><tbody id="matrix-body"></tbody></table></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const root = document.getElementById("recap");
+  const PALETTE = ["#0f766e","#b91c1c","#1d4ed8","#b45309","#7c3aed","#0891b2","#be123c","#4d7c0f","#9333ea","#c2410c"];
+
+  function renderChart(h){
+    const wrap = document.getElementById("pnl-chart");
+    if(!h || !h.teams.length || !h.rounds.length){
+      wrap.innerHTML = '<p class="note">Waiting for the first revealed round…</p>'; return;
+    }
+    const rounds=h.rounds, teams=h.teams, N=rounds.length;
+    let lo=0, hi=0;
+    teams.forEach(t=>t.cumulative.forEach(v=>{lo=Math.min(lo,v);hi=Math.max(hi,v);}));
+    if(hi===lo) hi=lo+1;
+    const W=900,H=Math.max(300,60+teams.length*20),ml=72,mr=170,mt=20,mb=42;
+    const iw=W-ml-mr, ih=H-mt-mb;
+    const X=i=> ml + (N===1 ? iw/2 : (i/(N-1))*iw);
+    const Y=v=> mt + ih - ((v-lo)/(hi-lo))*ih;
+    let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" font-family="system-ui,sans-serif">`;
+    // zero baseline + y labels
+    s+=`<line x1="${ml}" y1="${Y(0)}" x2="${ml+iw}" y2="${Y(0)}" stroke="#94a3b8" stroke-dasharray="4 4"/>`;
+    [hi,0,lo].forEach(v=>{ s+=`<text x="${ml-8}" y="${Y(v)+4}" text-anchor="end" font-size="12" fill="#64748b">${money(v)}</text>`; });
+    rounds.forEach((rn,i)=>{ s+=`<text x="${X(i)}" y="${H-16}" text-anchor="middle" font-size="12" fill="#64748b">R${rn}</text>`; });
+    let hc=0;
+    teams.forEach((t,ti)=>{
+      const color = t.is_bot ? "#94a3b8" : PALETTE[hc++ % PALETTE.length];
+      const dash = t.is_bot ? ' stroke-dasharray="5 4"' : '';
+      const pts = t.cumulative.map((v,i)=>`${X(i)},${Y(v)}`).join(" ");
+      if(N===1) s+=`<circle cx="${X(0)}" cy="${Y(t.cumulative[0])}" r="4" fill="${color}"/>`;
+      else s+=`<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"${dash}/>`;
+      s+=`<circle cx="${X(N-1)}" cy="${Y(t.cumulative[N-1])}" r="3" fill="${color}"/>`;
+      const ly=mt+16+ti*20;
+      s+=`<line x1="${ml+iw+16}" y1="${ly-4}" x2="${ml+iw+36}" y2="${ly-4}" stroke="${color}" stroke-width="2"${dash}/>`;
+      s+=`<text x="${ml+iw+42}" y="${ly}" font-size="12" fill="#0f172a">${t.team}${t.is_bot?" (bot)":""} ${money(t.final)}</text>`;
+    });
+    s+="</svg>";
+    wrap.innerHTML=s;
+  }
+
+  function renderStandings(lb){
+    const body=document.getElementById("standings-body"); body.innerHTML="";
+    lb.forEach((t,i)=>{
+      const cls=t.cumulative_profit>=0?"up":"down";
+      const tr=document.createElement("tr");
+      tr.innerHTML=`<td>${i+1}</td><td>${t.team}${t.is_bot?' <span class="chip bot">bot</span>':''}</td>`
+        +`<td class="num">${money(t.cumulative_revenue)}</td><td class="num">${money(t.cumulative_spend)}</td>`
+        +`<td class="num ${cls}">${money(t.cumulative_profit)}</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  function renderMatrix(h){
+    const head=document.getElementById("matrix-head"), body=document.getElementById("matrix-body");
+    if(!h || !h.rounds.length){ head.innerHTML=""; body.innerHTML=""; return; }
+    let hr="<tr><th>Team</th>";
+    h.rounds.forEach(rn=> hr+=`<th class="num">R${rn}</th>`);
+    hr+='<th class="num">Total</th></tr>';
+    head.innerHTML=hr;
+    body.innerHTML="";
+    h.teams.forEach(t=>{
+      let row=`<td>${t.team}${t.is_bot?' <span class="chip bot">bot</span>':''}</td>`;
+      t.per_round.forEach(p=>{ row+=`<td class="num ${p>=0?'up':'down'}">${money(p)}</td>`; });
+      row+=`<td class="num ${t.final>=0?'up':'down'}"><strong>${money(t.final)}</strong></td>`;
+      const tr=document.createElement("tr"); tr.innerHTML=row; body.appendChild(tr);
+    });
+  }
+
+  function render(s){ renderChart(s.history); renderStandings(s.leaderboard||[]); renderMatrix(s.history); }
+  startPolling(root.dataset.stateUrl, render, 2500);
+</script>
+{% endblock %}

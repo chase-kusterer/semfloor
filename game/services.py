@@ -205,17 +205,22 @@ def resolve_round(round: Round):
     """
     Run the auction + funnel for every keyword in the round and post the results.
 
-    Keywords resolve in order; a team's spend on earlier keywords reduces the budget
-    it has left for later ones (its bid caps clicks by remaining budget). Cumulative
+    Each team's round budget is split EVENLY across the round's keywords: with a
+    $10,000 budget and 2 keywords, each keyword's auction can spend at most $5,000.
+    This guarantees one expensive keyword can never starve the others — a team that
+    wins a slot on every keyword gets clicks on every keyword. (Unspent slack on one
+    keyword is simply unspent; budgets refresh next round anyway.) Cumulative
     spend/revenue/profit move the leaderboard. Guarded to run only once
     (CLOSED -> RESOLVED) so totals never double-count.
     """
     teams = {t.id: t for t in round.game.teams.all()}
-    budget_left = {tid: float(t.budget_remaining) for tid, t in teams.items()}
+    keywords = list(round.keywords.all())
+    n_keywords = max(1, len(keywords))
+    budget_share = {tid: float(t.budget_remaining) / n_keywords for tid, t in teams.items()}
     totals = {tid: {"spend": Decimal("0.00"), "revenue": Decimal("0.00"),
                     "profit": Decimal("0.00")} for tid in teams}
 
-    for keyword in round.keywords.all():
+    for keyword in keywords:
         spec = effective_spec(round, keyword)
         bids = list(round.bids.filter(keyword=keyword).select_related("team"))
         team_bids = [
@@ -224,7 +229,7 @@ def resolve_round(round: Round):
                 max_bid=float(b.max_bid),
                 quality_score=float(b.quality_score if b.quality_score is not None
                                     else DEFAULT_HUMAN_QUALITY),
-                budget_remaining=budget_left[b.team_id],
+                budget_remaining=budget_share[b.team_id],
             )
             for b in bids
         ]
@@ -242,9 +247,11 @@ def resolve_round(round: Round):
                     "impressions": r.impressions, "clicks": r.clicks, "spend": spend,
                     "conversions": r.conversions, "revenue": revenue,
                     "profit": profit, "roas": r.roas,
+                    "bid_amount": Decimal(str(r.bid_amount)),
+                    "next_highest_bid": (Decimal(str(r.next_highest_bid))
+                                         if r.next_highest_bid is not None else None),
                 },
             )
-            budget_left[tid] = max(0.0, budget_left[tid] - r.spend)
             totals[tid]["spend"] += spend
             totals[tid]["revenue"] += revenue
             totals[tid]["profit"] += profit

@@ -49,4 +49,6 @@ class ResultRow:
     revenue: float
     profit: float
     roas: float | None         # revenue / spend; None when there is no spend
+    bid_amount: float = 0.0            # the team's own max bid
+    next_highest_bid: float | None = None  # bid of the ad ranked just below (the price setter)
     fields_note: str = field(default="", repr=False)

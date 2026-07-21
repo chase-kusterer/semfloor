@@ -40,6 +40,7 @@
       const cls = r.profit >= 0 ? "up" : "down";
       html += `<tr><td>${r.position || "—"}</td>`
         + `<td>${r.team}${r.is_bot ? ' <span class="chip bot">bot</span>' : ''}</td>`
+        + `<td class="num">${r.impressions}</td>`
         + `<td class="num">${r.clicks}</td><td class="num">${money(r.spend)}</td>`
         + `<td class="num">${money(r.revenue)}</td>`
         + `<td class="num ${cls}">${money(r.profit)}</td>`
@@ -78,7 +79,7 @@
       }
       r.results_by_keyword.forEach(sec => {
         html += `<div class="card"><h2>“${sec.keyword}”</h2>`
-          + `<table><thead><tr><th>Pos</th><th>Team</th><th class="num">Clicks</th><th class="num">Spend</th>`
+          + `<table><thead><tr><th>Pos</th><th>Team</th><th class="num" title="Times the ad was served — must win a position to be served">Impr.</th><th class="num">Clicks</th><th class="num">Spend</th>`
           + `<th class="num">Revenue</th><th class="num">Profit</th><th class="num">ROAS</th></tr></thead>`
           + `<tbody>${resultRows(sec.rows)}</tbody></table></div>`;
       });

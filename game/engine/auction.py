@@ -28,6 +28,7 @@ class Placement:
     ad_rank: float
     position: int | None   # 1-based; None if the ad did not win a slot
     actual_cpc: float
+    next_highest_bid: float | None = None  # max_bid of the ad ranked just below (price setter)
 
 
 def _sort_key(bid: TeamBid):
@@ -38,7 +39,11 @@ def _sort_key(bid: TeamBid):
 
 def run_auction(spec: KeywordSpec, bids: list[TeamBid]) -> list[Placement]:
     """Rank bids, assign slots, and price each shown ad via GSP."""
-    ordered = sorted(bids, key=_sort_key)
+    # Standard eligibility rule: a bid below the reserve price cannot be shown.
+    eligible = [b for b in bids if b.max_bid >= spec.reserve_price]
+    ineligible = [b for b in bids if b.max_bid < spec.reserve_price]
+
+    ordered = sorted(eligible, key=_sort_key)
     placements: list[Placement] = []
 
     for i, bid in enumerate(ordered):
@@ -55,11 +60,18 @@ def run_auction(spec: KeywordSpec, bids: list[TeamBid]) -> list[Placement]:
             below = ordered[i + 1]
             below_ad_rank = below.max_bid * below.quality_score
             cpc = below_ad_rank / bid.quality_score + CPC_INCREMENT
+            next_highest = below.max_bid
         else:
             cpc = spec.reserve_price
+            next_highest = None
 
-        # Never charge more than the team's own max bid; never below zero.
-        cpc = max(0.0, min(cpc, bid.max_bid))
-        placements.append(Placement(bid.team_id, ad_rank, i + 1, round(cpc, 2)))
+        # The reserve is a floor for EVERY shown ad, not just the lowest; and you
+        # never pay more than your own max bid (eligibility guarantees bid >= reserve).
+        cpc = min(max(cpc, spec.reserve_price), bid.max_bid)
+        placements.append(Placement(bid.team_id, ad_rank, i + 1, round(cpc, 2), next_highest))
+
+    # Ineligible bids (below reserve) are never shown.
+    for bid in ineligible:
+        placements.append(Placement(bid.team_id, bid.max_bid * bid.quality_score, None, 0.0))
 
     return placements

@@ -237,6 +237,10 @@ class RoundResult(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="results")
     keyword = models.ForeignKey(Keyword, on_delete=models.CASCADE, related_name="results")
 
+    bid_amount = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"),
+                                     help_text="The team's own max bid on this keyword.")
+    next_highest_bid = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True,
+                                           help_text="Bid of the ad ranked just below — the GSP price setter.")
     ad_rank = models.FloatField(default=0.0)
     position = models.PositiveIntegerField(null=True, blank=True, help_text="Null = ad not shown.")
     actual_cpc = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))

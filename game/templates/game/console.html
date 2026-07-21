@@ -21,7 +21,7 @@
       {% if current_round %}
         <p class="note">Round {{ current_round.number }} —
            <span class="status {{ current_round.status }}">{{ current_round.get_status_display }}</span>
-           · fresh budget of {{ game.starting_budget }} to spread across
+           · fresh budget of {{ game.starting_budget }}, split evenly across
            {{ current_round.keywords.count }} keyword{{ current_round.keywords.count|pluralize }}</p>
       {% else %}
         <p class="note">Waiting for the facilitator to open the first round.</p>
@@ -50,7 +50,8 @@
         <div style="margin-top:16px"><button type="submit">Submit / update bids</button></div>
         <p class="note">Minimum bid {{ game.min_bid }} per click. Leave a keyword blank to sit it out.
            Any teammate can submit while the round is open — the latest submission wins.
-           Your bids across all keywords draw from the same {{ game.starting_budget }} round budget.</p>
+           Your {{ game.starting_budget }} round budget is split evenly across the round's keywords —
+           spending on one keyword never eats another's share.</p>
       </form>
     {% endif %}
   </div>
@@ -97,11 +98,13 @@
         let html = `<p>Round total: spend ${money(lr.spend)}, revenue ${money(lr.revenue)}, `
           + `profit <span class="${cls}">${money(lr.profit)}</span>.</p>`;
         html += `<div style="overflow-x:auto"><table><thead><tr><th>Keyword</th><th>Pos</th>`
+          + `<th class="num" title="Times your ad was served — it must win a position to be served">Impr.</th>`
           + `<th class="num">Clicks</th><th class="num">Spend</th><th class="num">Revenue</th>`
           + `<th class="num">Profit</th><th class="num">ROAS</th></tr></thead><tbody>`;
         lr.rows.forEach(r => {
           const c = r.profit >= 0 ? "up" : "down";
           html += `<tr><td>${r.keyword}</td><td>${r.position || "—"}</td>`
+            + `<td class="num">${r.impressions}</td>`
             + `<td class="num">${r.clicks}</td><td class="num">${money(r.spend)}</td>`
             + `<td class="num">${money(r.revenue)}</td><td class="num ${c}">${money(r.profit)}</td>`
             + `<td class="num">${r.roas == null ? "—" : r.roas + "x"}</td></tr>`;

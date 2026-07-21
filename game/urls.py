@@ -37,6 +37,7 @@ urlpatterns = [
     path("g/<str:code>/facilitator/event/", views.fac_event, name="fac_event"),
     path("g/<str:code>/facilitator/bots/", views.fac_bots, name="fac_bots"),
     path("g/<str:code>/facilitator/reset/", views.fac_reset, name="fac_reset"),
+    path("g/<str:code>/facilitator/results.csv", views.fac_results_export, name="fac_results_export"),
 
     # Setup wizard (facilitator-only; no Django admin needed)
     path("setup/", views.setup_home, name="setup_home"),

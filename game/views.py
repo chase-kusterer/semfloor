@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 
 from . import keyword_io, services
 from .decorators import facilitator_required
-from .models import Bid, Game, Keyword, Round, Team, TeamMember
+from .models import Bid, Game, Keyword, Round, RoundResult, Team, TeamMember
 from .state import build_game_state
 
 
@@ -573,6 +573,33 @@ def setup_keywords_import(request, code):
     messages.success(request, f"Import complete: {', '.join(bits) or 'nothing changed'}."
                      + (" Existing keywords were replaced." if replace else ""))
     return redirect("game:setup_game", code=code)
+
+
+@facilitator_required
+def fac_results_export(request, code):
+    """Download all resolved results as CSV (facilitator only — includes bids)."""
+    import csv as _csv
+    import io as _io
+    game = get_object_or_404(Game, code=code)
+    out = _io.StringIO()
+    w = _csv.writer(out)
+    w.writerow(["Round", "Keyword", "Team", "Bot", "Bid amount", "Next highest bid",
+                "Position", "CPC", "Impressions", "Clicks", "Spend", "Conversions",
+                "Revenue", "Profit", "ROAS"])
+    results = (RoundResult.objects.filter(round__game=game)
+               .select_related("round", "team", "keyword")
+               .order_by("round__number", "keyword__order", "position"))
+    for r in results:
+        w.writerow([r.round.number, r.keyword.label, r.team.name,
+                    "yes" if r.team.is_bot else "no",
+                    r.bid_amount, r.next_highest_bid if r.next_highest_bid is not None else "",
+                    r.position if r.position is not None else "",
+                    r.actual_cpc, r.impressions if r.position else 0, r.clicks,
+                    r.spend, r.conversions, r.revenue, r.profit,
+                    r.roas if r.roas is not None else ""])
+    resp = HttpResponse(out.getvalue(), content_type="text/csv")
+    resp["Content-Disposition"] = f'attachment; filename="{game.code}_round_results.csv"'
+    return resp
 
 
 @facilitator_required

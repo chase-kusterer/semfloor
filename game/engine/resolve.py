@@ -35,5 +35,7 @@ def resolve_keyword(spec: KeywordSpec, bids: list[TeamBid]) -> list[ResultRow]:
             revenue=f.revenue,
             profit=profit,
             roas=roas,
+            bid_amount=bid.max_bid,
+            next_highest_bid=p.next_highest_bid,
         ))
     return rows

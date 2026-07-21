@@ -26,7 +26,17 @@ There are three screens:
    reveal, firing market events as you like.
 
 Budgets are **fresh each round**: opening a round tops every team back up to the
-per-round budget. Profit and ROAS accumulate across rounds on the leaderboard.
+per-round budget, and that budget is **split evenly across the round's keywords** —
+overspending demand on one keyword can never starve a team's other keywords of
+clicks. Profit and ROAS accumulate across rounds on the leaderboard.
+
+The facilitator dashboard's results table is built for teaching the **generalized
+second-price auction**: it shows each team's own bid, the *next highest bid* (the
+ad ranked just below, which sets the price), the actual CPC, and impressions.
+A **Download results CSV** button exports every round's results — bids included —
+for debriefs or grading. Two pricing rules to point out to students: bids below a
+keyword's reserve price are never shown, and no shown ad ever pays less than the
+reserve or more than its own bid.
 
 ---
 

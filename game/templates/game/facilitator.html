@@ -47,9 +47,17 @@
 
   {% if current_results %}
     <div class="card">
-      <h2>Round {{ current_round.number }} results</h2>
-      <table>
-        <thead><tr><th>Keyword</th><th>Pos</th><th>Team</th><th class="num">CPC</th><th class="num">Clicks</th>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2>Round {{ current_round.number }} results</h2>
+        <a href="{% url 'game:fac_results_export' code=game.code %}"><button type="button" class="secondary">Download results CSV</button></a>
+      </div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr><th>Keyword</th><th>Pos</th><th>Team</th>
+          <th class="num" title="The team's own max bid">Bid</th>
+          <th class="num" title="Bid of the ad ranked just below — under GSP this is what sets your price">Next highest bid</th>
+          <th class="num" title="What the team actually paid per click: next ad rank ÷ your quality + $0.01, floored at the reserve">CPC</th>
+          <th class="num" title="Times the ad was served — must win a position to be served">Impr.</th>
+          <th class="num">Clicks</th>
           <th class="num">Spend</th><th class="num">Revenue</th><th class="num">Profit</th><th class="num">ROAS</th></tr></thead>
         <tbody>
           {% for r in current_results %}
@@ -57,14 +65,21 @@
               <td>{{ r.keyword.label }}</td>
               <td>{% if r.position %}{{ r.position }}{% else %}—{% endif %}</td>
               <td>{{ r.team.name }}{% if r.team.is_bot %} <span class="chip bot">bot</span>{% endif %}</td>
-              <td class="num">{{ r.actual_cpc }}</td><td class="num">{{ r.clicks }}</td>
+              <td class="num">{{ r.bid_amount }}</td>
+              <td class="num">{% if r.next_highest_bid != None %}{{ r.next_highest_bid }}{% else %}—{% endif %}</td>
+              <td class="num">{{ r.actual_cpc }}</td>
+              <td class="num">{% if r.position %}{{ r.impressions }}{% else %}0{% endif %}</td>
+              <td class="num">{{ r.clicks }}</td>
               <td class="num">{{ r.spend }}</td><td class="num">{{ r.revenue }}</td>
               <td class="num {% if r.profit >= 0 %}up{% else %}down{% endif %}">{{ r.profit }}</td>
               <td class="num">{% if r.roas != None %}{{ r.roas }}x{% else %}—{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>
-      </table>
+      </table></div>
+      <p class="note">GSP teaching aid: each shown ad's CPC is set by the ad ranked just below it
+        (its ad rank ÷ your quality score, + $0.01), never more than your own bid, never less than the
+        keyword's reserve. The lowest shown ad pays the reserve. “—” under Next highest bid means no one was below.</p>
     </div>
   {% endif %}
 

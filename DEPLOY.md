@@ -16,6 +16,15 @@ below are the two easiest paths plus a container option.
    Postgres database and a web service, wires `DATABASE_URL`, and generates `SECRET_KEY`.
 3. After the first deploy, add `CSRF_TRUSTED_ORIGINS=https://<your-service>.onrender.com`
    to the service's environment and redeploy.
+4. Create your facilitator login: open the service's **Shell** tab and run
+   `python manage.py createsuperuser` (and optionally `python manage.py seed_demo`).
+   Note: Render's free tier doesn't include the Shell tab — if you're on free, run
+   `DATABASE_URL="<external connection string from the Render DB page>" python manage.py createsuperuser`
+   from your own machine instead; it connects to the same database.
+
+Migrations run automatically at startup (`startCommand` in `render.yaml`), because
+the free tier doesn't support `preDeployCommand`. On a paid plan you can move
+`python manage.py migrate --noinput` into `preDeployCommand` for cleaner deploys.
 
 ## Option B — Railway / Heroku-style
 - The `Procfile` defines `release: migrate` and `web: gunicorn semfloor.wsgi`.

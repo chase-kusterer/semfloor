@@ -10,8 +10,9 @@ services:
     runtime: python
     plan: free
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput"
-    preDeployCommand: "python manage.py migrate --noinput"
-    startCommand: "gunicorn semfloor.wsgi"
+    # Free tier doesn't support preDeployCommand, so migrations run at startup
+    # instead. (On a paid plan you can move the migrate step to preDeployCommand.)
+    startCommand: "python manage.py migrate --noinput && gunicorn semfloor.wsgi"
     envVars:
       - key: DATABASE_URL
         fromDatabase:

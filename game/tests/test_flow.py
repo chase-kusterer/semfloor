@@ -113,6 +113,30 @@ class SetupWizardTests(TestCase):
         self.c = Client()
         self.c.force_login(User.objects.get(username="prof"))
 
+    def test_custom_join_code(self):
+        # Create with a custom code (lowercased input is uppercased).
+        r = self.c.post("/setup/", {"name": "G", "code": "mkt101"})
+        game = Game.objects.get(name="G")
+        self.assertEqual(game.code, "MKT101")
+        self.assertRedirects(r, "/g/MKT101/setup/")
+        # Duplicate code is rejected.
+        self.c.post("/setup/", {"name": "G2", "code": "MKT101"})
+        self.assertFalse(Game.objects.filter(name="G2").exists())
+        # Invalid code (symbols) is rejected.
+        self.c.post("/setup/", {"name": "G3", "code": "MKT-101"})
+        self.assertFalse(Game.objects.filter(name="G3").exists())
+        # Change the code from settings while no students have joined.
+        self.c.post("/g/MKT101/setup/settings/", {"code": "MKT201"})
+        game.refresh_from_db()
+        self.assertEqual(game.code, "MKT201")
+        # Once a student joins a team, the code is locked.
+        stu = Client()
+        stu.post("/join/", {"code": "MKT201", "display_name": "Ana"})
+        stu.post("/g/MKT201/teams/create/", {"team_name": "Alpha"})
+        self.c.post("/g/MKT201/setup/settings/", {"code": "MKT301"})
+        game.refresh_from_db()
+        self.assertEqual(game.code, "MKT201")
+
     def test_create_game_starter_pack_and_schedule(self):
         # Create a game from the setup home page.
         r = self.c.post("/setup/", {"name": "MKT 101", "starting_budget": "8000",

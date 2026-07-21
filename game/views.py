@@ -6,12 +6,12 @@ facilitator round controls, and the one-page Setup wizard.
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from . import services
+from . import keyword_io, services
 from .decorators import facilitator_required
 from .models import Bid, Game, Keyword, Round, Team, TeamMember
 from .state import build_game_state
@@ -398,15 +398,37 @@ def _int(raw, default):
         return default
 
 
+def _clean_code(raw, *, exclude_pk=None):
+    """Validate a custom join code. Returns (code, error) — code is None if invalid/blank."""
+    code = (raw or "").strip().upper()
+    if not code:
+        return None, None
+    if not code.isalnum() or len(code) > 8:
+        return None, "Code must be 1–8 letters/numbers (no spaces or symbols)."
+    qs = Game.objects.filter(code=code)
+    if exclude_pk is not None:
+        qs = qs.exclude(pk=exclude_pk)
+    if qs.exists():
+        return None, f"Code {code} is already used by another game."
+    return code, None
+
+
 @facilitator_required
 def setup_home(request):
     """List existing games and create a new one — the instructor's front door."""
     if request.method == "POST":
-        game = Game.objects.create(
+        custom_code, err = _clean_code(request.POST.get("code"))
+        if err:
+            messages.error(request, err)
+            return redirect("game:setup_home")
+        kwargs = dict(
             name=(request.POST.get("name") or "SEM Trading Floor").strip() or "SEM Trading Floor",
             starting_budget=_dec(request.POST.get("starting_budget"), Decimal("10000.00")),
             max_team_size=_int(request.POST.get("max_team_size"), 4),
         )
+        if custom_code:
+            kwargs["code"] = custom_code
+        game = Game.objects.create(**kwargs)
         messages.success(request, f"Game created — join code {game.code}. Now add keywords and build rounds.")
         return redirect("game:setup_game", code=game.code)
     return render(request, "game/setup_home.html", {
@@ -427,6 +449,7 @@ def setup_game(request, code):
         "bots": game.teams.filter(is_bot=True),
         "join_url": join_url,
         "played": played,
+        "asset_classes": keyword_io.ASSET_CLASS_DEFINITIONS,
     })
 
 
@@ -435,6 +458,17 @@ def setup_game(request, code):
 def setup_settings(request, code):
     """Save the game's core settings."""
     game = get_object_or_404(Game, code=code)
+    # Optional: change the join code (e.g. to MKT101). Blocked once anyone has
+    # joined, since the student link contains the code.
+    new_code, err = _clean_code(request.POST.get("code"), exclude_pk=game.pk)
+    if err:
+        messages.error(request, err)
+        return redirect("game:setup_game", code=code)
+    if new_code and new_code != game.code:
+        if game.teams.filter(is_bot=False).exists():
+            messages.error(request, "Can't change the code after students have joined — the link they use contains it.")
+            return redirect("game:setup_game", code=code)
+        game.code = new_code
     game.name = (request.POST.get("name") or game.name).strip() or game.name
     game.starting_budget = _dec(request.POST.get("starting_budget"), game.starting_budget)
     game.min_bid = _dec(request.POST.get("min_bid"), game.min_bid)
@@ -442,7 +476,7 @@ def setup_settings(request, code):
     game.max_team_size = _int(request.POST.get("max_team_size"), game.max_team_size)
     game.save()
     messages.success(request, "Settings saved.")
-    return redirect("game:setup_game", code=code)
+    return redirect("game:setup_game", code=game.code)
 
 
 @require_POST
@@ -485,6 +519,70 @@ def setup_keyword_delete(request, code):
         kw.delete()
         messages.success(request, f"Keyword “{kw.label}” removed.")
     return redirect("game:setup_game", code=code)
+
+
+@require_POST
+@facilitator_required
+def setup_keyword_edit(request, code):
+    """Inline edit of one keyword row on the setup page."""
+    game = get_object_or_404(Game, code=code)
+    kw = get_object_or_404(Keyword, game=game, pk=request.POST.get("keyword_id"))
+    label = (request.POST.get("label") or kw.label).strip() or kw.label
+    if label != kw.label and game.keywords.filter(label=label).exclude(pk=kw.pk).exists():
+        messages.error(request, f"There's already a keyword called “{label}”.")
+        return redirect("game:setup_game", code=code)
+    kw.label = label
+    kw.asset_class = (request.POST.get("asset_class") or "").strip()
+    kw.search_volume = _int(request.POST.get("search_volume"), kw.search_volume)
+    try:
+        cvr = float(request.POST.get("conversion_rate"))
+        kw.conversion_rate = cvr / 100 if cvr > 1 else cvr  # accept 3 or 0.03
+    except (TypeError, ValueError):
+        pass
+    kw.order_value = _dec(request.POST.get("order_value"), kw.order_value)
+    kw.reserve_price = _dec(request.POST.get("reserve_price"), kw.reserve_price)
+    kw.save()
+    messages.success(request, f"“{kw.label}” updated.")
+    return redirect("game:setup_game", code=code)
+
+
+@require_POST
+@facilitator_required
+def setup_keywords_import(request, code):
+    """Upload a CSV/XLSX — native format or a Google Keyword Planner export."""
+    game = get_object_or_404(Game, code=code)
+    if game.rounds.exclude(status=Round.Status.PENDING).exists():
+        messages.error(request, "Rounds have been played — reset the game before importing keywords.")
+        return redirect("game:setup_game", code=code)
+    upload = request.FILES.get("file")
+    if not upload:
+        messages.error(request, "Choose a .csv or .xlsx file first.")
+        return redirect("game:setup_game", code=code)
+    try:
+        parsed = keyword_io.parse_keyword_upload(upload.name, upload.read())
+    except keyword_io.KeywordImportError as e:
+        messages.error(request, str(e))
+        return redirect("game:setup_game", code=code)
+    replace = request.POST.get("mode") == "replace"
+    created, updated = keyword_io.import_keywords(game, parsed, replace=replace)
+    bits = []
+    if created:
+        bits.append(f"{created} added")
+    if updated:
+        bits.append(f"{updated} updated")
+    messages.success(request, f"Import complete: {', '.join(bits) or 'nothing changed'}."
+                     + (" Existing keywords were replaced." if replace else ""))
+    return redirect("game:setup_game", code=code)
+
+
+@facilitator_required
+def setup_keywords_export(request, code):
+    """Download all keywords as the native CSV (edit and re-upload)."""
+    game = get_object_or_404(Game, code=code)
+    csv_text = keyword_io.export_keywords_csv(game)
+    resp = HttpResponse(csv_text, content_type="text/csv")
+    resp["Content-Disposition"] = f'attachment; filename="{game.code}_keywords.csv"'
+    return resp
 
 
 @require_POST

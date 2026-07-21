@@ -2,6 +2,9 @@
 {% block title %}Setup — {{ game.name }}{% endblock %}
 {% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
 {% block content %}
+<style>
+  .help { border-bottom: 1px dotted currentColor; cursor: help; }
+</style>
   <h1>Setup: {{ game.name }}</h1>
   <p class="sub">Three steps: <strong>1</strong> settings · <strong>2</strong> keywords ·
      <strong>3</strong> round schedule — then run the game from the
@@ -25,6 +28,11 @@
       {% csrf_token %}
       <label for="name">Game name</label>
       <input type="text" id="name" name="name" value="{{ game.name }}">
+      <label for="code">Join code</label>
+      <input type="text" id="code" name="code" value="{{ game.code }}" maxlength="8"
+             pattern="[A-Za-z0-9]{1,8}" title="1–8 letters/numbers"
+             style="text-transform:uppercase">
+      <p class="note">Changing the code changes the student link. Locked once students have joined.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div style="flex:1;min-width:140px"><label for="starting_budget">Budget per round</label>
           <input type="number" id="starting_budget" name="starting_budget" step="100" value="{{ game.starting_budget|floatformat:'0' }}"></div>
@@ -52,18 +60,25 @@
 
     {% if keywords %}
       <div style="overflow-x:auto"><table>
-        <thead><tr><th>Keyword</th><th>Asset class</th><th class="num">Volume</th>
-          <th class="num">Conv. rate</th><th class="num">Order value</th><th class="num">Reserve</th><th></th></tr></thead>
+        <thead><tr><th>Keyword</th><th>Asset class</th>
+          <th class="num"><span class="help" title="Impressions available in a round — how many searches your ad can be shown for. From Keyword Planner this is avg. monthly searches.">Volume ⓘ</span></th>
+          <th class="num"><span class="help" title="Share of clicks that turn into a sale (0–1, e.g. 0.03 = 3%). Higher = stronger buying intent.">Conv. rate ⓘ</span></th>
+          <th class="num"><span class="help" title="Revenue earned per conversion. Conv. rate × order value is the keyword's fair value per click.">Order value ⓘ</span></th>
+          <th class="num"><span class="help" title="Floor price: the minimum cost-per-click the lowest shown ad pays, even with no competition.">Reserve ⓘ</span></th>
+          <th></th></tr></thead>
         <tbody>
           {% for k in keywords %}
             <tr>
-              <td><span class="kw">{{ k.label }}</span></td>
-              <td>{{ k.asset_class }}</td>
-              <td class="num">{{ k.search_volume }}</td>
-              <td class="num">{{ k.conversion_rate }}</td>
-              <td class="num">{{ k.order_value }}</td>
-              <td class="num">{{ k.reserve_price }}</td>
-              <td style="text-align:right">
+              <td><input form="kwedit{{ k.id }}" type="text" name="label" value="{{ k.label }}" style="min-width:150px" {% if played %}disabled{% endif %}></td>
+              <td><input form="kwedit{{ k.id }}" type="text" name="asset_class" value="{{ k.asset_class }}" style="min-width:130px" {% if played %}disabled{% endif %}></td>
+              <td class="num"><input form="kwedit{{ k.id }}" type="number" name="search_volume" value="{{ k.search_volume }}" min="1" style="width:90px" {% if played %}disabled{% endif %}></td>
+              <td class="num"><input form="kwedit{{ k.id }}" type="number" name="conversion_rate" value="{{ k.conversion_rate }}" step="0.001" min="0" style="width:80px" {% if played %}disabled{% endif %}></td>
+              <td class="num"><input form="kwedit{{ k.id }}" type="number" name="order_value" value="{{ k.order_value }}" step="1" min="0" style="width:80px" {% if played %}disabled{% endif %}></td>
+              <td class="num"><input form="kwedit{{ k.id }}" type="number" name="reserve_price" value="{{ k.reserve_price }}" step="0.10" min="0" style="width:70px" {% if played %}disabled{% endif %}></td>
+              <td style="text-align:right;white-space:nowrap">
+                <form id="kwedit{{ k.id }}" method="post" action="{% url 'game:setup_keyword_edit' code=game.code %}" style="display:inline">
+                  {% csrf_token %}<input type="hidden" name="keyword_id" value="{{ k.id }}">
+                  <button type="submit" {% if played %}disabled{% endif %}>Save</button></form>
                 <form method="post" action="{% url 'game:setup_keyword_delete' code=game.code %}" style="display:inline">
                   {% csrf_token %}<input type="hidden" name="keyword_id" value="{{ k.id }}">
                   <button type="submit" class="secondary" {% if played %}disabled{% endif %}>Remove</button></form>
@@ -72,11 +87,41 @@
           {% endfor %}
         </tbody>
       </table></div>
-      <p class="note">Fine-grained edits (CTR curves, tweaking values) are available in the
-        <a href="/admin/game/keyword/">admin</a>, but the defaults above are classroom-ready.</p>
+      <p class="note">Edit any value and hit Save on that row. Conversion rate accepts 0.03 or 3 (both mean 3%).
+        CTR curves can be fine-tuned in the <a href="/admin/game/keyword/">admin</a>.</p>
     {% else %}
-      <p class="note">No keywords yet — load the starter pack or add your own below.</p>
+      <p class="note">No keywords yet — load the starter pack, upload a file, or add your own below.</p>
     {% endif %}
+
+    <details style="margin-top:12px">
+      <summary style="cursor:pointer;font-weight:600">What do the asset classes mean?</summary>
+      <table style="margin-top:8px">
+        {% for name, definition in asset_classes %}
+          <tr><td style="white-space:nowrap;font-weight:600">{{ name }}</td><td>{{ definition }}</td></tr>
+        {% endfor %}
+      </table>
+      <p class="note">Asset class is free text — it's flavor for students, not a mechanic. Use these or invent your own.</p>
+    </details>
+
+    <h3 style="margin-top:16px">Import / export</h3>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+      <form method="post" action="{% url 'game:setup_keywords_import' code=game.code %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="kwfile">Upload keywords (.csv or .xlsx)</label>
+        <input type="file" id="kwfile" name="file" accept=".csv,.xlsx,.xlsm" {% if played %}disabled{% endif %}>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
+          <label style="font-weight:normal"><input type="radio" name="mode" value="append" checked> Add / update</label>
+          <label style="font-weight:normal"><input type="radio" name="mode" value="replace"> Replace all</label>
+          <button type="submit" {% if played %}disabled{% endif %}>Import</button>
+        </div>
+      </form>
+      <form method="get" action="{% url 'game:setup_keywords_export' code=game.code %}">
+        <button type="submit" class="secondary">Download CSV</button>
+      </form>
+    </div>
+    <p class="note">Accepts a <strong>Google Keyword Planner</strong> export (searches, competition and top-of-page
+      bids are mapped to game values automatically) or the CSV downloaded here (all columns round-trip:
+      download, edit in Excel or Sheets, upload again).</p>
 
     <h3 style="margin-top:16px">Add a keyword</h3>
     <form method="post" action="{% url 'game:setup_keyword_add' code=game.code %}">

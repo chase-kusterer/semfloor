@@ -11,6 +11,10 @@
         {% csrf_token %}
         <label for="name">Game name</label>
         <input type="text" id="name" name="name" value="SEM Trading Floor" required>
+        <label for="code">Join code <span class="note" style="font-weight:normal">(optional — e.g. MKT101; leave blank for a random code)</span></label>
+        <input type="text" id="code" name="code" maxlength="8" placeholder="MKT101"
+               pattern="[A-Za-z0-9]{1,8}" title="1–8 letters/numbers"
+               style="text-transform:uppercase">
         <div style="display:flex;gap:12px">
           <div style="flex:1"><label for="starting_budget">Budget per round</label>
             <input type="number" id="starting_budget" name="starting_budget" step="100" value="10000"></div>

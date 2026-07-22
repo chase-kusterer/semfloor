@@ -38,7 +38,7 @@
     let html = "";
     rows.forEach(r => {
       const cls = r.profit >= 0 ? "up" : "down";
-      html += `<tr><td>${r.position || "—"}</td>`
+      html += `<tr><td>${r.position || (r.below_floor ? '<span class="chip" title="Bid was under this keyword\'s price floor">below floor</span>' : "—")}</td>`
         + `<td>${r.team}${r.is_bot ? ' <span class="chip bot">bot</span>' : ''}</td>`
         + `<td class="num">${r.impressions}</td>`
         + `<td class="num">${r.clicks}</td><td class="num">${money(r.spend)}</td>`

@@ -66,8 +66,13 @@ class LifecycleTests(TestCase):
         bases = {k.id: k.to_spec().search_volume for k in rnd.keywords.all()}
         services.fire_event(self.game, "surge")  # search_volume x1.6
         for k in rnd.keywords.all():
-            self.assertEqual(services.effective_spec(rnd, k).search_volume,
-                             int(bases[k.id] * 1.6 + 0.5))
+            vol = services.effective_spec(rnd, k).search_volume
+            expected = bases[k.id] * 1.6
+            # Realized volume = event-adjusted volume with ±11% market jitter,
+            # deterministic per (round, keyword).
+            self.assertGreaterEqual(vol, int(expected * 0.89) - 1)
+            self.assertLessEqual(vol, int(expected * 1.11) + 1)
+            self.assertEqual(vol, services.effective_spec(rnd, k).search_volume)  # deterministic
 
     def test_reset_clears_progress(self):
         rnd = services.open_next_round(self.game)

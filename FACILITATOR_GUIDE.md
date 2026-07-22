@@ -30,8 +30,15 @@ per-round budget, and that budget is **split evenly across the round's keywords*
 overspending demand on one keyword can never starve a team's other keywords of
 clicks. Profit and ROAS accumulate across rounds on the leaderboard.
 
-The facilitator dashboard's results table is built for teaching the **generalized
-second-price auction**: it shows each team's own bid, the *next highest bid* (the
+Realized **search volume varies ±11%** around each keyword's configured value every
+round — market noise that's identical for every team on that keyword, so results stay
+fair and reproducible.
+
+The facilitator dashboard's results area gives **each resolved round its own tab**,
+and every column is **sortable** (click a header; click again to reverse) and
+**filterable** (type in the box — team names, keywords, positions). The CSV download
+can scope to the **current round** or **all rounds**. The table is built for teaching
+the **generalized second-price auction**: it shows each team's own bid, the *next highest bid* (the
 ad ranked just below, which sets the price), the actual CPC, and impressions.
 A **Download results CSV** button exports every round's results — bids included —
 for debriefs or grading. Two pricing rules to point out to students: bids below a

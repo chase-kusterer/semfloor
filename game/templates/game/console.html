@@ -32,14 +32,17 @@
       <form method="post" action="{% url 'game:submit_bid' code=game.code %}">
         {% csrf_token %}
         <div style="overflow-x:auto"><table>
-          <thead><tr><th>Keyword</th><th></th><th class="num" style="width:180px">Max bid per click</th></tr></thead>
+          <thead><tr><th>Keyword</th><th></th>
+            <th class="num" title="Bids below this floor are never shown — like Google's first-page bid minimum">Price floor</th>
+            <th class="num" style="width:180px">Max bid per click</th></tr></thead>
           <tbody>
             {% for kb in keyword_bids %}
               <tr>
                 <td><span class="kw">{{ kb.keyword.label }}</span></td>
                 <td><span class="chip">{{ kb.keyword.asset_class }}</span></td>
+                <td class="num">{{ kb.keyword.reserve_price }}</td>
                 <td class="num">
-                  <input type="number" step="0.01" min="{{ game.min_bid }}" name="bid_{{ kb.keyword.id }}"
+                  <input type="number" step="0.01" min="0" name="bid_{{ kb.keyword.id }}"
                          value="{% if kb.bid %}{{ kb.bid.max_bid }}{% endif %}"
                          placeholder="no bid" style="max-width:140px">
                 </td>
@@ -48,7 +51,7 @@
           </tbody>
         </table></div>
         <div style="margin-top:16px"><button type="submit">Submit / update bids</button></div>
-        <p class="note">Minimum bid {{ game.min_bid }} per click. Leave a keyword blank to sit it out.
+        <p class="note">{% if game.min_bid > 0 %}Minimum bid {{ game.min_bid }} per click. {% endif %}Bid at or above a keyword's price floor to be shown. Leave a keyword blank to sit it out.
            Any teammate can submit while the round is open — the latest submission wins.
            Your {{ game.starting_budget }} round budget is split evenly across the round's keywords —
            spending on one keyword never eats another's share.</p>
@@ -103,7 +106,7 @@
           + `<th class="num">Profit</th><th class="num">ROAS</th></tr></thead><tbody>`;
         lr.rows.forEach(r => {
           const c = r.profit >= 0 ? "up" : "down";
-          html += `<tr><td>${r.keyword}</td><td>${r.position || "—"}</td>`
+          html += `<tr><td>${r.keyword}</td><td>${r.position || (r.below_floor ? '<span class="chip" title="Your bid was under this keyword\'s price floor">below floor</span>' : "—")}</td>`
             + `<td class="num">${r.impressions}</td>`
             + `<td class="num">${r.clicks}</td><td class="num">${money(r.spend)}</td>`
             + `<td class="num">${money(r.revenue)}</td><td class="num ${c}">${money(r.profit)}</td>`

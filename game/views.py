@@ -213,6 +213,9 @@ def submit_bid(request, code):
         except (InvalidOperation, TypeError):
             errors.append(f"“{keyword.label}”: enter a valid amount.")
             continue
+        if max_bid < 0:
+            errors.append(f"“{keyword.label}”: a bid can't be negative.")
+            continue
         if max_bid < game.min_bid:
             errors.append(f"“{keyword.label}”: minimum bid is {game.min_bid}.")
             continue
@@ -248,7 +251,18 @@ def facilitator(request, code):
     current = game.current_round
     current_results = None
     if current is not None and current.status in (Round.Status.RESOLVED, Round.Status.REVEALED):
-        current_results = current.results.select_related("team", "keyword").all()
+        current_results = True  # kept for template's "results exist" check
+    # Every resolved/revealed round gets its own tab.
+    results_rounds = []
+    for rnd in (game.rounds.filter(status__in=[Round.Status.RESOLVED, Round.Status.REVEALED])
+                .order_by("number").prefetch_related("keywords")):
+        rows = list(rnd.results.select_related("team", "keyword").all())
+        for r in rows:
+            # Quality score back-computed from ad rank (ad_rank = bid x quality).
+            r.quality = round(r.ad_rank / float(r.bid_amount), 1) if r.bid_amount else None
+            r.below_floor = (r.position is None and r.bid_amount
+                             and r.bid_amount < r.keyword.reserve_price)
+        results_rounds.append({"round": rnd, "rows": rows})
     event_choices = [(k, v["title"]) for k, v in services.EVENT_DECK.items()]
     return render(request, "game/facilitator.html", {
         "game": game,
@@ -256,6 +270,7 @@ def facilitator(request, code):
         "bots": game.teams.filter(is_bot=True),
         "current_round": current,
         "current_results": current_results,
+        "results_rounds": results_rounds,
         "event_choices": event_choices,
         "rounds": game.rounds.prefetch_related("keywords").all(),
         "join_url": join_url,
@@ -583,22 +598,38 @@ def fac_results_export(request, code):
     game = get_object_or_404(Game, code=code)
     out = _io.StringIO()
     w = _csv.writer(out)
-    w.writerow(["Round", "Keyword", "Team", "Bot", "Bid amount", "Next highest bid",
+    w.writerow(["Round", "Keyword", "Team", "Bot", "Bid amount", "Quality score",
+                "Ad rank", "Next highest bid",
                 "Position", "CPC", "Impressions", "Clicks", "Spend", "Conversions",
                 "Revenue", "Profit", "ROAS"])
     results = (RoundResult.objects.filter(round__game=game)
                .select_related("round", "team", "keyword")
                .order_by("round__number", "keyword__order", "position"))
+    which = request.GET.get("rounds", "all")
+    if which != "all":
+        try:
+            results = results.filter(round__number=int(which))
+        except (TypeError, ValueError):
+            pass
     for r in results:
+        quality = round(r.ad_rank / float(r.bid_amount), 1) if r.bid_amount else ""
+        if r.position is not None:
+            pos = r.position
+        elif r.bid_amount and r.bid_amount < r.keyword.reserve_price:
+            pos = "below floor"
+        else:
+            pos = "not shown"
         w.writerow([r.round.number, r.keyword.label, r.team.name,
                     "yes" if r.team.is_bot else "no",
-                    r.bid_amount, r.next_highest_bid if r.next_highest_bid is not None else "",
-                    r.position if r.position is not None else "",
+                    r.bid_amount, quality, r.ad_rank,
+                    r.next_highest_bid if r.next_highest_bid is not None else "",
+                    pos,
                     r.actual_cpc, r.impressions if r.position else 0, r.clicks,
                     r.spend, r.conversions, r.revenue, r.profit,
                     r.roas if r.roas is not None else ""])
     resp = HttpResponse(out.getvalue(), content_type="text/csv")
-    resp["Content-Disposition"] = f'attachment; filename="{game.code}_round_results.csv"'
+    suffix = "all_rounds" if which == "all" else f"round_{which}"
+    resp["Content-Disposition"] = f'attachment; filename="{game.code}_results_{suffix}.csv"'
     return resp
 
 

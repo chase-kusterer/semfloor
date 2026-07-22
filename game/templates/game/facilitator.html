@@ -45,42 +45,143 @@
     </div>
   </div>
 
-  {% if current_results %}
+  {% if results_rounds %}
     <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h2>Round {{ current_round.number }} results</h2>
-        <a href="{% url 'game:fac_results_export' code=game.code %}"><button type="button" class="secondary">Download results CSV</button></a>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h2>Round results</h2>
+        <form id="results-export" method="get" action="{% url 'game:fac_results_export' code=game.code %}"
+              style="display:flex;gap:14px;align-items:center">
+          <label style="font-weight:normal;white-space:nowrap">
+            <input type="checkbox" class="export-choice" value="current" checked> Download current round</label>
+          <label style="font-weight:normal;white-space:nowrap">
+            <input type="checkbox" class="export-choice" value="all"> Download all rounds</label>
+          <input type="hidden" name="rounds" id="export-rounds" value="">
+          <button type="submit" class="secondary">Download CSV</button>
+        </form>
       </div>
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Keyword</th><th>Pos</th><th>Team</th>
-          <th class="num" title="The team's own max bid">Bid</th>
-          <th class="num" title="Bid of the ad ranked just below — under GSP this is what sets your price">Next highest bid</th>
-          <th class="num" title="What the team actually paid per click: next ad rank ÷ your quality + $0.01, floored at the reserve">CPC</th>
-          <th class="num" title="Times the ad was served — must win a position to be served">Impr.</th>
-          <th class="num">Clicks</th>
-          <th class="num">Spend</th><th class="num">Revenue</th><th class="num">Profit</th><th class="num">ROAS</th></tr></thead>
-        <tbody>
-          {% for r in current_results %}
-            <tr>
-              <td>{{ r.keyword.label }}</td>
-              <td>{% if r.position %}{{ r.position }}{% else %}—{% endif %}</td>
-              <td>{{ r.team.name }}{% if r.team.is_bot %} <span class="chip bot">bot</span>{% endif %}</td>
-              <td class="num">{{ r.bid_amount }}</td>
-              <td class="num">{% if r.next_highest_bid != None %}{{ r.next_highest_bid }}{% else %}—{% endif %}</td>
-              <td class="num">{{ r.actual_cpc }}</td>
-              <td class="num">{% if r.position %}{{ r.impressions }}{% else %}0{% endif %}</td>
-              <td class="num">{{ r.clicks }}</td>
-              <td class="num">{{ r.spend }}</td><td class="num">{{ r.revenue }}</td>
-              <td class="num {% if r.profit >= 0 %}up{% else %}down{% endif %}">{{ r.profit }}</td>
-              <td class="num">{% if r.roas != None %}{{ r.roas }}x{% else %}—{% endif %}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table></div>
-      <p class="note">GSP teaching aid: each shown ad's CPC is set by the ad ranked just below it
-        (its ad rank ÷ your quality score, + $0.01), never more than your own bid, never less than the
-        keyword's reserve. The lowest shown ad pays the reserve. “—” under Next highest bid means no one was below.</p>
+
+      <div class="tabbar" style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap">
+        {% for rr in results_rounds %}
+          <button type="button" class="round-tab secondary" data-round="{{ rr.round.number }}">
+            Round {{ rr.round.number }}</button>
+        {% endfor %}
+      </div>
+
+      {% for rr in results_rounds %}
+        <div class="round-pane" data-round="{{ rr.round.number }}" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <p class="note" style="margin:4px 0">Keywords: {{ rr.round.keyword_labels }}</p>
+            <input type="search" class="results-filter" placeholder="Filter (team, keyword, position…)"
+                   style="max-width:260px">
+          </div>
+          <div style="overflow-x:auto"><table class="results-table">
+            <thead><tr>
+              <th data-sort="text">Keyword</th><th data-sort="num">Pos</th><th data-sort="text">Team</th>
+              <th class="num" data-sort="num" title="The team's own max bid">Bid</th>
+              <th class="num" data-sort="num" title="Quality score (1–10). Ad Rank = bid × quality — this is why a lower bid can outrank a higher one">Quality</th>
+              <th class="num" data-sort="num" title="Bid × quality; slots go to the highest ad ranks">Ad rank</th>
+              <th class="num" data-sort="num" title="Bid of the ad ranked just below — under GSP this is what sets your price">Next highest bid</th>
+              <th class="num" data-sort="num" title="What the team actually paid per click">CPC</th>
+              <th class="num" data-sort="num" title="Times the ad was served — must win a position to be served">Impr.</th>
+              <th class="num" data-sort="num">Clicks</th>
+              <th class="num" data-sort="num">Spend</th><th class="num" data-sort="num">Revenue</th>
+              <th class="num" data-sort="num">Profit</th><th class="num" data-sort="num">ROAS</th>
+            </tr></thead>
+            <tbody>
+              {% for r in rr.rows %}
+                <tr>
+                  <td>{{ r.keyword.label }}</td>
+                  <td data-val="{% if r.position %}{{ r.position }}{% else %}999{% endif %}">{% if r.position %}{{ r.position }}{% elif r.below_floor %}<span class="chip" title="Bid was below this keyword's price floor (reserve {{ r.keyword.reserve_price }}), so the ad was not eligible to be shown">below floor</span>{% else %}—{% endif %}</td>
+                  <td>{{ r.team.name }}{% if r.team.is_bot %} <span class="chip bot">bot</span>{% endif %}</td>
+                  <td class="num">{{ r.bid_amount }}</td>
+                  <td class="num">{% if r.quality != None %}{{ r.quality }}{% else %}—{% endif %}</td>
+                  <td class="num">{{ r.ad_rank }}</td>
+                  <td class="num">{% if r.next_highest_bid != None %}{{ r.next_highest_bid }}{% else %}—{% endif %}</td>
+                  <td class="num">{{ r.actual_cpc }}</td>
+                  <td class="num">{% if r.position %}{{ r.impressions }}{% else %}0{% endif %}</td>
+                  <td class="num">{{ r.clicks }}</td>
+                  <td class="num">{{ r.spend }}</td><td class="num">{{ r.revenue }}</td>
+                  <td class="num {% if r.profit >= 0 %}up{% else %}down{% endif %}">{{ r.profit }}</td>
+                  <td class="num">{% if r.roas != None %}{{ r.roas }}x{% else %}—{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table></div>
+        </div>
+      {% endfor %}
+
+      <p class="note">Click a column header to sort (again to reverse); type in the filter box to narrow rows.
+        Slots go to the highest <strong>ad ranks</strong> (bid × quality), so the top bid isn't always position 1.
+        “below floor” means the bid was under the keyword's reserve and wasn't eligible. Each shown ad's CPC is
+        set by the ad ranked just below it (its ad rank ÷ your quality, + $0.01), never more than your own bid,
+        never less than the reserve; the lowest shown ad pays the reserve.</p>
     </div>
+
+    <script>
+      (function () {
+        const tabs = document.querySelectorAll(".round-tab");
+        const panes = document.querySelectorAll(".round-pane");
+        const exportRounds = document.getElementById("export-rounds");
+        const choices = document.querySelectorAll(".export-choice");
+        // default to the LATEST round's tab
+        let active = "{% with results_rounds|last as lastrr %}{{ lastrr.round.number }}{% endwith %}";
+
+        function show(n) {
+          active = String(n);
+          tabs.forEach(t => t.classList.toggle("secondary", t.dataset.round !== active));
+          panes.forEach(p => p.style.display = p.dataset.round === active ? "" : "none");
+          syncExport();
+        }
+        function syncExport() {
+          const mode = document.querySelector(".export-choice:checked");
+          exportRounds.value = (mode && mode.value === "all") ? "all" : active;
+        }
+        choices.forEach(c => c.addEventListener("change", () => {
+          choices.forEach(o => { if (o !== c) o.checked = false; });
+          if (!document.querySelector(".export-choice:checked")) c.checked = true;
+          syncExport();
+        }));
+        tabs.forEach(t => t.addEventListener("click", () => show(t.dataset.round)));
+        show(active);
+
+        // Sorting: click a header, numeric-aware, toggles asc/desc.
+        document.querySelectorAll(".results-table th").forEach(th => {
+          th.style.cursor = "pointer";
+          th.addEventListener("click", () => {
+            const table = th.closest("table");
+            const tbody = table.querySelector("tbody");
+            const idx = Array.from(th.parentNode.children).indexOf(th);
+            const numeric = th.dataset.sort === "num";
+            const dir = th.dataset.dir === "asc" ? -1 : 1;
+            table.querySelectorAll("th").forEach(h => delete h.dataset.dir);
+            th.dataset.dir = dir === 1 ? "asc" : "desc";
+            Array.from(tbody.rows)
+              .sort((a, b) => {
+                const cell = r => r.cells[idx].dataset.val ?? r.cells[idx].textContent.trim();
+                let x = cell(a), y = cell(b);
+                if (numeric) {
+                  x = parseFloat(String(x).replace(/[^0-9.\-]/g, "")); if (isNaN(x)) x = -Infinity;
+                  y = parseFloat(String(y).replace(/[^0-9.\-]/g, "")); if (isNaN(y)) y = -Infinity;
+                  return (x - y) * dir;
+                }
+                return String(x).localeCompare(String(y)) * dir;
+              })
+              .forEach(r => tbody.appendChild(r));
+          });
+        });
+
+        // Filtering: any cell text match hides/shows rows in that pane's table.
+        document.querySelectorAll(".results-filter").forEach(inp => {
+          inp.addEventListener("input", () => {
+            const q = inp.value.trim().toLowerCase();
+            const tbody = inp.closest(".round-pane").querySelector("tbody");
+            Array.from(tbody.rows).forEach(r => {
+              r.style.display = !q || r.textContent.toLowerCase().includes(q) ? "" : "none";
+            });
+          });
+        });
+      })();
+    </script>
   {% endif %}
 
   <div class="grid two">

@@ -70,7 +70,13 @@ STARTER_KEYWORDS = [
 # --- keyword spec, adjusted by any events on the round ----------------------
 
 def effective_spec(rnd: Round, keyword: Keyword):
-    """One keyword's fundamentals with this round's fired events applied."""
+    """
+    One keyword's fundamentals with this round's fired events applied, plus a
+    little market noise: actual search volume varies within ±11% of the
+    configured value each round. The jitter is market-wide (every team bidding
+    on the keyword sees the same realized volume) and deterministic per
+    (round, keyword), so re-running a resolve can never change results.
+    """
     spec = keyword.to_spec()
     for ev in rnd.events.all():
         e = ev.effect or {}
@@ -78,6 +84,8 @@ def effective_spec(rnd: Round, keyword: Keyword):
         spec.conversion_rate *= e.get("conversion_rate_mult", 1)
         spec.order_value *= e.get("order_value_mult", 1)
         spec.reserve_price *= e.get("reserve_price_mult", 1)
+    rng = random.Random(f"volume-{rnd.id}-{keyword.id}")
+    spec.search_volume = max(1, int(round_half(spec.search_volume * rng.uniform(0.89, 1.11))))
     return spec
 
 
@@ -106,7 +114,7 @@ def generate_bot_bids(rnd: Round):
             rng = random.Random(f"{rnd.id}-{keyword.id}-{bot.id}")
             jitter = rng.uniform(0.7, 1.15)
             bid = max(min_bid, fair_value * bot.bot_aggressiveness * jitter)
-            quality = round(rng.uniform(3.5, 8.0), 1)
+            quality = round(rng.uniform(3.0, 7.0), 1)  # symmetric around the human default of 5.0
             Bid.objects.update_or_create(
                 round=rnd, team=bot, keyword=keyword,
                 defaults={"max_bid": Decimal(str(round(bid, 2))), "quality_score": quality},

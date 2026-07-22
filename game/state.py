@@ -88,6 +88,8 @@ def _result_row(r):
         "team": r.team.name,
         "is_bot": r.team.is_bot,
         "position": r.position,
+        "below_floor": bool(r.position is None and r.bid_amount
+                            and r.bid_amount < r.keyword.reserve_price),
         "impressions": r.impressions if r.position else 0,
         "clicks": r.clicks,
         "spend": float(r.spend),
@@ -194,6 +196,8 @@ def build_game_state(game, team=None) -> dict:
             if my:
                 rows = [{
                     "keyword": r.keyword.label, "position": r.position,
+                    "below_floor": bool(r.position is None and r.bid_amount
+                                        and r.bid_amount < r.keyword.reserve_price),
                     "impressions": r.impressions if r.position else 0,
                     "clicks": r.clicks, "spend": float(r.spend),
                     "revenue": float(r.revenue), "profit": float(r.profit),

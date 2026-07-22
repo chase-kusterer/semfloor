@@ -41,7 +41,8 @@ class Game(models.Model):
         max_digits=12, decimal_places=2, default=Decimal("10000.00"),
         help_text="Play-money budget every team receives FRESH at the start of each round.",
     )
-    min_bid = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.50"))
+    min_bid = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"),
+                                  help_text="Lowest bid students may enter; 0 lets any non-negative bid through (keyword reserve prices still act as the auction floor).")
     ad_slots = models.PositiveIntegerField(default=3, help_text="Ad positions available per keyword.")
     max_team_size = models.PositiveIntegerField(
         default=4, validators=[MinValueValidator(1)],

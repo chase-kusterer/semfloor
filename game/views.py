@@ -67,6 +67,23 @@ def join_submit(request):
 
     _session_key(request)
     request.session["display_name"] = display_name
+
+    # Individual play: the game is in Individual Mode, or the player ticked
+    # "Play Individually" — either way they get a personal one-seat team.
+    if game.play_mode == Game.PlayMode.INDIVIDUAL or request.POST.get("play_individually"):
+        if _current_membership(request, game) is None:
+            base = display_name or "Player"
+            name, n = base, 2
+            while game.teams.filter(name=name).exists():
+                name = f"{base} ({n})"
+                n += 1
+            team = Team.objects.create(game=game, name=name,
+                                       budget_remaining=game.starting_budget)
+            TeamMember.objects.create(game=game, team=team,
+                                      session_key=_session_key(request),
+                                      display_name=display_name)
+        return redirect("game:console", code=game.code)
+
     return redirect("game:team_select", code=game.code)
 
 
@@ -165,8 +182,10 @@ def console(request, code):
     keyword_bids = []
     if current is not None:
         bid_by_kw = {b.keyword_id: b for b in current.bids.filter(team=team)}
+        qv = (services.quality_vector(current, team)
+              if game.quality_show_players else {})
         keyword_bids = [
-            {"keyword": k, "bid": bid_by_kw.get(k.id)}
+            {"keyword": k, "bid": bid_by_kw.get(k.id), "quality": qv.get(k.id)}
             for k in current.keywords.all()
         ]
     return render(request, "game/console.html", {
@@ -379,11 +398,11 @@ def fac_bots(request, code):
         count = max(0, int(request.POST.get("count", "0")))
         aggressiveness = float(request.POST.get("aggressiveness", "1.0"))
     except (TypeError, ValueError):
-        messages.error(request, "Enter a whole number of bots and a numeric aggressiveness.")
-        return redirect("game:facilitator", code=code)
+        return _saved(request, "Enter a whole number of bots and a numeric aggressiveness.",
+                      redirect_to="game:facilitator", code=code, ok=False)
     services.configure_bots(game, count, aggressiveness)
-    messages.success(request, f"Bots set to {count} at aggressiveness {aggressiveness}.")
-    return redirect("game:facilitator", code=code)
+    return _saved(request, f"Bots set to {count} at aggressiveness {aggressiveness}.",
+                  redirect_to="game:facilitator", code=code)
 
 
 @require_POST
@@ -398,6 +417,14 @@ def fac_reset(request, code):
 # ---------------------------------------------------------------------------
 # Setup wizard — everything the instructor needs, no Django admin required.
 # ---------------------------------------------------------------------------
+
+def _saved(request, message, redirect_to=None, code=None, ok=True):
+    """Autosave-aware response: JSON for fetch() calls, messages+redirect otherwise."""
+    if request.headers.get("X-Requested-With") == "fetch":
+        return JsonResponse({"ok": ok, "message": message})
+    (messages.success if ok else messages.error)(request, message)
+    return redirect(redirect_to or "game:setup_game", code=code)
+
 
 def _dec(raw, default):
     try:
@@ -466,6 +493,7 @@ def setup_game(request, code):
         "join_url": join_url,
         "played": played,
         "asset_classes": keyword_io.ASSET_CLASS_DEFINITIONS,
+        "human_teams": game.teams.filter(is_bot=False),
     })
 
 
@@ -490,9 +518,27 @@ def setup_settings(request, code):
     game.min_bid = _dec(request.POST.get("min_bid"), game.min_bid)
     game.ad_slots = _int(request.POST.get("ad_slots"), game.ad_slots)
     game.max_team_size = _int(request.POST.get("max_team_size"), game.max_team_size)
+    if request.POST.get("play_mode") in dict(Game.PlayMode.choices):
+        game.play_mode = request.POST["play_mode"]
+    # Quality score settings (present on the same autosaving setup page).
+    if request.POST.get("quality_mode") in dict(Game.QualityMode.choices):
+        game.quality_mode = request.POST["quality_mode"]
+    def _f(name, current, lo=0.0, hi=10.0):
+        try:
+            return min(hi, max(lo, float(request.POST[name])))
+        except (KeyError, TypeError, ValueError):
+            return current
+    game.quality_uniform = _f("quality_uniform", game.quality_uniform)
+    game.quality_min = _f("quality_min", game.quality_min)
+    game.quality_max = _f("quality_max", game.quality_max)
+    if game.quality_min > game.quality_max:
+        game.quality_min, game.quality_max = game.quality_max, game.quality_min
+    if "quality_apply_bots" in request.POST:
+        game.quality_apply_bots = request.POST["quality_apply_bots"] in ("1", "true", "on")
+    if "quality_show_players" in request.POST:
+        game.quality_show_players = request.POST["quality_show_players"] in ("1", "true", "on")
     game.save()
-    messages.success(request, "Settings saved.")
-    return redirect("game:setup_game", code=game.code)
+    return _saved(request, "Settings saved.", code=game.code)
 
 
 @require_POST
@@ -545,8 +591,8 @@ def setup_keyword_edit(request, code):
     kw = get_object_or_404(Keyword, game=game, pk=request.POST.get("keyword_id"))
     label = (request.POST.get("label") or kw.label).strip() or kw.label
     if label != kw.label and game.keywords.filter(label=label).exclude(pk=kw.pk).exists():
-        messages.error(request, f"There's already a keyword called “{label}”.")
-        return redirect("game:setup_game", code=code)
+        return _saved(request, f"There's already a keyword called “{label}”.",
+                      code=code, ok=False)
     kw.label = label
     kw.asset_class = (request.POST.get("asset_class") or "").strip()
     kw.search_volume = _int(request.POST.get("search_volume"), kw.search_volume)
@@ -557,9 +603,26 @@ def setup_keyword_edit(request, code):
         pass
     kw.order_value = _dec(request.POST.get("order_value"), kw.order_value)
     kw.reserve_price = _dec(request.POST.get("reserve_price"), kw.reserve_price)
+    if "is_active" in request.POST:
+        kw.is_active = request.POST["is_active"] in ("1", "true", "on")
     kw.save()
-    messages.success(request, f"“{kw.label}” updated.")
-    return redirect("game:setup_game", code=code)
+    return _saved(request, f"“{kw.label}” saved.", code=code)
+
+
+@require_POST
+@facilitator_required
+def setup_team_quality(request, code):
+    """Manual quality mode: save one team's min/max quality bounds (autosaves)."""
+    game = get_object_or_404(Game, code=code)
+    team = get_object_or_404(Team, game=game, pk=request.POST.get("team_id"), is_bot=False)
+    try:
+        lo = min(10.0, max(0.0, float(request.POST.get("quality_min"))))
+        hi = min(10.0, max(0.0, float(request.POST.get("quality_max"))))
+    except (TypeError, ValueError):
+        return _saved(request, "Enter numbers between 0 and 10.", code=code, ok=False)
+    team.quality_min, team.quality_max = min(lo, hi), max(lo, hi)
+    team.save()
+    return _saved(request, f"“{team.name}” quality range saved.", code=code)
 
 
 @require_POST
@@ -677,9 +740,12 @@ def setup_keywords_clear(request, code):
 def setup_build_rounds(request, code):
     """Split the keywords across N rounds, evenly, in keyword order."""
     game = get_object_or_404(Game, code=code)
-    num_rounds = _int(request.POST.get("num_rounds"), game.num_rounds)
+    nr_raw = (request.POST.get("num_rounds") or "").strip()
+    num_rounds = _int(nr_raw, game.num_rounds) if nr_raw else None
     kpr_raw = (request.POST.get("keywords_per_round") or "").strip()
     keywords_per_round = _int(kpr_raw, 0) if kpr_raw else None
+    if num_rounds is None and keywords_per_round is None:
+        num_rounds = game.num_rounds
     rounds = services.build_rounds(game, num_rounds, keywords_per_round=keywords_per_round)
     if rounds is None:
         if game.rounds.exclude(status=Round.Status.PENDING).exists():

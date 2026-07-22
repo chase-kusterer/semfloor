@@ -51,4 +51,5 @@ urlpatterns = [
     path("g/<str:code>/setup/keywords/starter/", views.setup_starter_pack, name="setup_starter_pack"),
     path("g/<str:code>/setup/keywords/clear/", views.setup_keywords_clear, name="setup_keywords_clear"),
     path("g/<str:code>/setup/rounds/build/", views.setup_build_rounds, name="setup_build_rounds"),
+    path("g/<str:code>/setup/teams/quality/", views.setup_team_quality, name="setup_team_quality"),
 ]

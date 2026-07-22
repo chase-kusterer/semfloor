@@ -1,6 +1,8 @@
 {% extends "game/base.html" %}
-{% block title %}Setup — {{ game.name }}{% endblock %}
-{% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
+{% block title %}Setup — {{ game.name }}
+{% endblock %}
+{% block topbar_extra %}<span class="code">{{ game.code }}</span>
+{% endblock %}
 {% block content %}
 <style>
   .help { border-bottom: 1px dotted currentColor; cursor: help; }
@@ -24,7 +26,7 @@
 
   <div class="card">
     <h2>1 · Settings</h2>
-    <form method="post" action="{% url 'game:setup_settings' code=game.code %}">
+    <form method="post" action="{% url 'game:setup_settings' code=game.code %}" data-autosave>
       {% csrf_token %}
       <label for="name">Game name</label>
       <input type="text" id="name" name="name" value="{{ game.name }}">
@@ -43,8 +45,16 @@
         <div style="flex:1;min-width:120px"><label for="max_team_size">Max team size</label>
           <input type="number" id="max_team_size" name="max_team_size" min="1" value="{{ game.max_team_size }}"></div>
       </div>
-      <div style="margin-top:12px"><button type="submit">Save settings</button></div>
-      <p class="note">Every team's budget is topped back up to “Budget per round” each time a round opens.</p>
+      <fieldset style="border:none;padding:0;margin-top:10px">
+        <label>Play mode</label>
+        <label style="font-weight:normal;margin-right:14px">
+          <input type="radio" name="play_mode" value="team" {% if game.play_mode == "team" %}checked{% endif %}> Team Mode</label>
+        <label style="font-weight:normal">
+          <input type="radio" name="play_mode" value="individual" {% if game.play_mode == "individual" %}checked{% endif %}> Individual Mode</label>
+        <p class="note" style="margin:4px 0 0">Individual Mode seats every player on their own one-person team the moment they join.
+          In Team Mode, players can still tick “Play individually” on the entry screen.</p>
+      </fieldset>
+      <p class="note">Changes save automatically. Every team's budget is topped back up to “Budget per round” each time a round opens.</p>
     </form>
   </div>
 
@@ -59,8 +69,10 @@
     </div>
 
     {% if keywords %}
-      <div style="overflow-x:auto"><table>
-        <thead><tr><th>Keyword</th><th>Asset class</th>
+      <div class="kw-scroll" style="overflow-x:auto;overflow-y:auto;max-height:460px;border:1px solid var(--line);border-radius:8px"><table>
+        <thead style="position:sticky;top:0;background:var(--bg,#fff);z-index:1"><tr>
+          <th title="Unticked keywords stay in the list but are left out of the round schedule">Active</th>
+          <th>Keyword</th><th>Asset class</th>
           <th class="num"><span class="help" title="Impressions available in a round — how many searches your ad can be shown for. From Keyword Planner this is avg. monthly searches.">Volume ⓘ</span></th>
           <th class="num"><span class="help" title="Share of clicks that turn into a sale (0–1, e.g. 0.03 = 3%). Higher = stronger buying intent.">Conv. rate ⓘ</span></th>
           <th class="num"><span class="help" title="Revenue earned per conversion. Conv. rate × order value is the keyword's fair value per click.">Order value ⓘ</span></th>
@@ -68,7 +80,12 @@
           <th></th></tr></thead>
         <tbody>
           {% for k in keywords %}
-            <tr>
+            <tr{% if not k.is_active %} style="opacity:.55"{% endif %}>
+              <td style="text-align:center">
+                <input form="kwedit{{ k.id }}" type="hidden" name="is_active" value="0">
+                <input form="kwedit{{ k.id }}" type="checkbox" name="is_active" value="1"
+                       {% if k.is_active %}checked{% endif %} {% if played %}disabled{% endif %}
+                       title="Include this keyword in the round schedule"></td>
               <td><input form="kwedit{{ k.id }}" type="text" name="label" value="{{ k.label }}" style="min-width:150px" {% if played %}disabled{% endif %}></td>
               <td><input form="kwedit{{ k.id }}" type="text" name="asset_class" value="{{ k.asset_class }}" style="min-width:130px" {% if played %}disabled{% endif %}></td>
               <td class="num"><input form="kwedit{{ k.id }}" type="number" name="search_volume" value="{{ k.search_volume }}" min="1" style="width:90px" {% if played %}disabled{% endif %}></td>
@@ -76,9 +93,8 @@
               <td class="num"><input form="kwedit{{ k.id }}" type="number" name="order_value" value="{{ k.order_value }}" step="1" min="0" style="width:80px" {% if played %}disabled{% endif %}></td>
               <td class="num"><input form="kwedit{{ k.id }}" type="number" name="reserve_price" value="{{ k.reserve_price }}" step="0.10" min="0" style="width:70px" {% if played %}disabled{% endif %}></td>
               <td style="text-align:right;white-space:nowrap">
-                <form id="kwedit{{ k.id }}" method="post" action="{% url 'game:setup_keyword_edit' code=game.code %}" style="display:inline">
-                  {% csrf_token %}<input type="hidden" name="keyword_id" value="{{ k.id }}">
-                  <button type="submit" {% if played %}disabled{% endif %}>Save</button></form>
+                <form id="kwedit{{ k.id }}" method="post" action="{% url 'game:setup_keyword_edit' code=game.code %}" style="display:inline" data-autosave>
+                  {% csrf_token %}<input type="hidden" name="keyword_id" value="{{ k.id }}"></form>
                 <form method="post" action="{% url 'game:setup_keyword_delete' code=game.code %}" style="display:inline">
                   {% csrf_token %}<input type="hidden" name="keyword_id" value="{{ k.id }}">
                   <button type="submit" class="secondary" {% if played %}disabled{% endif %}>Remove</button></form>
@@ -87,7 +103,8 @@
           {% endfor %}
         </tbody>
       </table></div>
-      <p class="note">Edit any value and hit Save on that row. Conversion rate accepts 0.03 or 3 (both mean 3%).
+      <p class="note">The list shows about ten rows — scroll for the rest. Edits save automatically as you type.
+        Untick <strong>Active</strong> to bench a keyword without deleting it. Conversion rate accepts 0.03 or 3 (both mean 3%).
         CTR curves can be fine-tuned in the <a href="/admin/game/keyword/">admin</a>.</p>
     {% else %}
       <p class="note">No keywords yet — load the starter pack, upload a file, or add your own below.</p>
@@ -144,6 +161,79 @@
     </form>
   </div>
 
+
+  <div class="card">
+    <h2>Quality scores</h2>
+    <form method="post" action="{% url 'game:setup_settings' code=game.code %}" data-autosave id="quality-form">
+      {% csrf_token %}
+      <label style="font-weight:normal;display:block;margin-bottom:6px">
+        <input type="radio" name="quality_mode" value="uniform" {% if game.quality_mode == "uniform" %}checked{% endif %}>
+        <strong>Uniform Player Quality Score(s)</strong> — everyone gets the same score on every keyword.</label>
+      <div class="qmode qmode-uniform" style="margin:0 0 10px 26px">
+        <label for="quality_uniform">Universal quality score</label>
+        <input type="number" id="quality_uniform" name="quality_uniform" min="0" max="10" step="0.5"
+               value="{{ game.quality_uniform }}" style="max-width:110px">
+      </div>
+
+      <label style="font-weight:normal;display:block;margin-bottom:6px">
+        <input type="radio" name="quality_mode" value="random" {% if game.quality_mode == "random" %}checked{% endif %}>
+        <strong>Randomize Player Quality Score(s)</strong> — each keyword each round rolls a score in your range;
+        every player's scores sum to the same round total, so the noise is fair.</label>
+      <div class="qmode qmode-random" style="margin:0 0 10px 26px;max-width:420px">
+        <div class="dual-slider" data-min-input="quality_min" data-max-input="quality_max">
+          <input type="range" min="0" max="10" step="0.5" value="{{ game.quality_min }}" class="ds-min">
+          <input type="range" min="0" max="10" step="0.5" value="{{ game.quality_max }}" class="ds-max">
+        </div>
+        <p class="note">Range: <span class="ds-label">{{ game.quality_min }} – {{ game.quality_max }}</span></p>
+        <input type="hidden" name="quality_min" value="{{ game.quality_min }}">
+        <input type="hidden" name="quality_max" value="{{ game.quality_max }}">
+      </div>
+
+      <label style="font-weight:normal;display:block;margin-bottom:6px">
+        <input type="radio" name="quality_mode" value="manual" {% if game.quality_mode == "manual" %}checked{% endif %}>
+        <strong>Manually Set Player Quality Score(s)</strong> — give each player/team its own range below.</label>
+
+      <div style="margin:12px 0 4px">
+        <label style="font-weight:normal"><input type="checkbox" name="quality_apply_bots" value="1"
+               {% if game.quality_apply_bots %}checked{% endif %}> Apply quality score settings to bots?</label><br>
+        <label style="font-weight:normal"><input type="checkbox" name="quality_show_players" value="1"
+               {% if game.quality_show_players %}checked{% endif %}> Show Players Quality Score</label>
+      </div>
+      <p class="note">Ad Rank = bid × quality, so quality is each player's private edge (or handicap) in the
+        auction. When shown, players see their score next to each keyword while bidding.</p>
+    </form>
+
+    <div class="qmode qmode-manual" style="margin-top:8px">
+      <h3 style="margin:8px 0">Per-team quality ranges</h3>
+      {% if human_teams %}
+        <table>
+          <thead><tr><th>Team</th><th style="min-width:260px">Range</th><th class="num">Min – Max</th></tr></thead>
+          <tbody>
+            {% for t in human_teams %}
+              <tr>
+                <td>{{ t.name }}</td>
+                <td>
+                  <form method="post" action="{% url 'game:setup_team_quality' code=game.code %}" data-autosave>
+                    {% csrf_token %}<input type="hidden" name="team_id" value="{{ t.id }}">
+                    <div class="dual-slider">
+                      <input type="range" min="0" max="10" step="0.5" value="{{ t.quality_min }}" class="ds-min">
+                      <input type="range" min="0" max="10" step="0.5" value="{{ t.quality_max }}" class="ds-max">
+                    </div>
+                    <input type="hidden" name="quality_min" value="{{ t.quality_min }}">
+                    <input type="hidden" name="quality_max" value="{{ t.quality_max }}">
+                  </form>
+                </td>
+                <td class="num"><span class="ds-label">{{ t.quality_min }} – {{ t.quality_max }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="note">No teams yet — ranges appear here as players join (each defaults to 0 – 10).</p>
+      {% endif %}
+    </div>
+  </div>
+
   <div class="card">
     <h2>3 · Round schedule</h2>
     <form method="post" action="{% url 'game:setup_build_rounds' code=game.code %}" style="display:flex;gap:12px;align-items:flex-end">
@@ -154,10 +244,11 @@
         <input type="number" id="keywords_per_round" name="keywords_per_round" min="1" placeholder="e.g. 2" style="max-width:130px"></div>
       <button type="submit" {% if played %}disabled{% endif %}>Build / rebuild schedule</button>
     </form>
-    <p class="note">Fill either box. <strong>Keywords per round</strong> chunks the list in order and the
-      number of rounds follows (8 keywords at 2 per round → 4 rounds; it wins if both are filled).
-      <strong>Number of rounds</strong> splits the keywords as evenly as possible
-      (8 keywords over 3 rounds → 3 / 3 / 2). Rebuild any time before the first round opens.</p>
+    <p class="note">Only <strong>Active</strong> keywords are scheduled, and not all of them have to be:
+      fill <strong>both boxes</strong> for exact control (1 round × 2 per round = 1 round using just the
+      first 2 active keywords). Fill only <strong>keywords per round</strong> to chunk the whole active
+      pool, or only <strong>number of rounds</strong> to split it evenly. Rebuild any time before the
+      first round opens.</p>
 
     {% if rounds %}
       <table style="margin-top:12px">
@@ -173,4 +264,124 @@
       <p style="margin-top:12px"><a class="btn" href="{% url 'game:facilitator' code=game.code %}">Ready — go to the facilitator dashboard →</a></p>
     {% endif %}
   </div>
+
+<style>
+  .dual-slider { position: relative; height: 28px; }
+  .dual-slider input[type=range] {
+    position: absolute; left: 0; right: 0; top: 6px; width: 100%;
+    pointer-events: none; background: transparent; -webkit-appearance: none; appearance: none;
+  }
+  .dual-slider input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: auto; }
+  .dual-slider input[type=range]::-moz-range-thumb { pointer-events: auto; }
+  #save-toast {
+    position: fixed; bottom: 18px; right: 18px; background: #1d7a3d; color: #fff;
+    padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .25s;
+    pointer-events: none; z-index: 50; box-shadow: 0 2px 10px rgba(0,0,0,.2);
+  }
+  #save-toast.err { background: #a33; }
+  #save-toast.show { opacity: 1; }
+</style>
+<div id="save-toast">Saved</div>
+<script>
+(function () {
+  const toast = document.getElementById("save-toast");
+  let toastTimer = null;
+  function notify(msg, ok) {
+    toast.textContent = msg || (ok ? "Saved" : "Couldn't save");
+    toast.classList.toggle("err", !ok);
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+
+  const timers = new Map();
+  function autosave(form) {
+    const fd = new FormData(form);
+    // Checkboxes: always send an explicit 0/1 so unchecking saves too.
+    form.querySelectorAll('input[type=checkbox][name]').forEach(cb => {
+      fd.set(cb.name, cb.checked ? (cb.value || "1") : "0");
+    });
+    fetch(form.action, {
+      method: "POST", body: fd,
+      headers: { "X-Requested-With": "fetch" },
+      credentials: "same-origin",
+    }).then(r => r.json())
+      .then(d => notify(d.message, d.ok))
+      .catch(() => notify("Couldn't save — check your connection.", false));
+  }
+  function schedule(form, delay) {
+    clearTimeout(timers.get(form));
+    timers.set(form, setTimeout(() => autosave(form), delay));
+  }
+  document.querySelectorAll("form[data-autosave]").forEach(form => {
+    form.addEventListener("submit", e => { e.preventDefault(); autosave(form); });
+    form.addEventListener("input", e => {
+      const el = e.target;
+      const instant = el.type === "checkbox" || el.type === "radio" || el.tagName === "SELECT";
+      schedule(form, instant ? 80 : 700);   // debounce typing; save toggles at once
+    });
+    form.addEventListener("change", () => schedule(form, 80));
+  });
+  // Inputs living outside their form via the form="" attribute still fire on the form? No —
+  // they fire on themselves, so wire them explicitly.
+  document.querySelectorAll('input[form]').forEach(el => {
+    const form = document.getElementById(el.getAttribute("form"));
+    if (!form || !form.hasAttribute("data-autosave")) return;
+    const handler = () => {
+      const instant = el.type === "checkbox" || el.type === "radio";
+      clearTimeout(timers.get(form));
+      timers.set(form, setTimeout(() => {
+        const fd = new FormData(form);  // includes form=-associated inputs
+        form.querySelectorAll('input[type=checkbox][name]').forEach(cb => {
+          fd.set(cb.name, cb.checked ? (cb.value || "1") : "0");
+        });
+        document.querySelectorAll('input[form="' + form.id + '"][type=checkbox][name]').forEach(cb => {
+          fd.set(cb.name, cb.checked ? (cb.value || "1") : "0");
+        });
+        fetch(form.action, { method: "POST", body: fd,
+                             headers: { "X-Requested-With": "fetch" },
+                             credentials: "same-origin" })
+          .then(r => r.json()).then(d => notify(d.message, d.ok))
+          .catch(() => notify("Couldn't save — check your connection.", false));
+      }, instant ? 80 : 700));
+    };
+    el.addEventListener("input", handler);
+    el.addEventListener("change", handler);
+  });
+
+  // Dual sliders: keep min <= max, mirror into hidden fields, update label, autosave.
+  document.querySelectorAll(".dual-slider").forEach(ds => {
+    const lo = ds.querySelector(".ds-min"), hi = ds.querySelector(".ds-max");
+    const holder = ds.closest("form") || ds.parentElement;
+    const hidLo = holder.querySelector('input[type=hidden][name$="quality_min"]')
+               || ds.parentElement.querySelector('input[name="quality_min"]');
+    const hidHi = holder.querySelector('input[type=hidden][name$="quality_max"]')
+               || ds.parentElement.querySelector('input[name="quality_max"]');
+    const label = (ds.closest("td, .qmode") || ds.parentElement).querySelector(".ds-label")
+               || (ds.closest("tr") || document).querySelector(".ds-label");
+    function sync(from) {
+      let a = parseFloat(lo.value), b = parseFloat(hi.value);
+      if (a > b) { if (from === lo) hi.value = lo.value; else lo.value = hi.value; a = parseFloat(lo.value); b = parseFloat(hi.value); }
+      if (hidLo) hidLo.value = a;
+      if (hidHi) hidHi.value = b;
+      if (label) label.textContent = a + " – " + b;
+    }
+    lo.addEventListener("input", () => sync(lo));
+    hi.addEventListener("input", () => sync(hi));
+    sync(lo);
+  });
+
+  // Show only the active quality mode's controls.
+  function syncQmode() {
+    const checked = document.querySelector('input[name="quality_mode"]:checked');
+    const mode = checked ? checked.value : "uniform";
+    document.querySelectorAll(".qmode").forEach(el => {
+      el.style.display = el.classList.contains("qmode-" + mode) ? "" : "none";
+    });
+  }
+  document.querySelectorAll('input[name="quality_mode"]').forEach(r =>
+    r.addEventListener("change", syncQmode));
+  syncQmode();
+})();
+</script>
 {% endblock %}

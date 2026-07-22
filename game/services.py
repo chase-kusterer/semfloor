@@ -19,7 +19,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .engine import TeamBid, resolve_keyword
-from .models import Bid, Event, Keyword, Round, RoundResult, Team
+from .models import Bid, Event, Game, Keyword, Round, RoundResult, Team
 
 # Human bids default to a mid quality score until a facilitator scores them (in the
 # admin, on the Bid). Bots get their own varied quality below.
@@ -141,29 +141,91 @@ def configure_bots(game, count: int, aggressiveness: float):
     game.teams.filter(is_bot=True).update(bot_aggressiveness=aggressiveness)
 
 
-# --- round schedule ---------------------------------------------------------
+# --- quality scores ---------------------------------------------------------
+
+def quality_vector(rnd: Round, team) -> dict:
+    """
+    Quality score per keyword for one team in one round, per the game's settings.
+    Deterministic for a given (round, team), so what players see on the console
+    before bidding is exactly what the resolve uses.
+
+      uniform: every keyword gets game.quality_uniform.
+      random:  each keyword drawn in [quality_min, quality_max], then adjusted so
+               every team's scores SUM to the same round total (fairness: noise
+               shifts scores between keywords, never between teams).
+      manual:  each keyword drawn in the TEAM's own [quality_min, quality_max]
+               (facilitator handicapping, so no cross-team equalization).
+    """
+    game = rnd.game
+    keywords = list(rnd.keywords.all())
+    if game.quality_mode == Game.QualityMode.UNIFORM:
+        return {k.id: round(game.quality_uniform, 1) for k in keywords}
+
+    if game.quality_mode == Game.QualityMode.MANUAL:
+        lo, hi = min(team.quality_min, team.quality_max), max(team.quality_min, team.quality_max)
+        rng = random.Random(f"quality-{rnd.id}-{team.id}")
+        return {k.id: round(rng.uniform(lo, hi), 1) for k in keywords}
+
+    # random mode with an equal-sum guarantee
+    lo, hi = min(game.quality_min, game.quality_max), max(game.quality_min, game.quality_max)
+    rng = random.Random(f"quality-{rnd.id}-{team.id}")
+    raw = [rng.uniform(lo, hi) for _ in keywords]
+    target = len(keywords) * (lo + hi) / 2.0
+    # Shift toward the target sum, clamping to bounds; distribute any clamped
+    # residue over entries that still have headroom.
+    for _ in range(6):
+        diff = target - sum(raw)
+        if abs(diff) < 1e-6:
+            break
+        room = [i for i, v in enumerate(raw)
+                if (diff > 0 and v < hi) or (diff < 0 and v > lo)]
+        if not room:
+            break
+        step = diff / len(room)
+        for i in room:
+            raw[i] = min(hi, max(lo, raw[i] + step))
+    return {k.id: round(v, 1) for k, v in zip(keywords, raw)}
+
+
+def team_quality_for_resolve(rnd: Round, team, keyword, stored_bid_quality):
+    """
+    The quality score a bid actually resolves with.
+
+    Humans always use the game's quality settings. Bots keep their own varied
+    quality (stored on the bid) unless "apply quality settings to bots" is on.
+    """
+    game = rnd.game
+    if team.is_bot and not game.quality_apply_bots:
+        return float(stored_bid_quality) if stored_bid_quality is not None else DEFAULT_HUMAN_QUALITY
+    return quality_vector(rnd, team).get(keyword.id, DEFAULT_HUMAN_QUALITY)
+
+
+
 
 def build_rounds(game, num_rounds: int | None = None, keywords_per_round: int | None = None):
     """
-    (Re)build the round schedule from the game's keywords, in keyword order.
+    (Re)build the round schedule from the game's ACTIVE keywords, in keyword order.
+    Not every keyword has to be used:
 
-    Two ways to shape it:
-      - `keywords_per_round`: chunk that many keywords into each round; the number
-        of rounds follows (last round takes the remainder). Wins if both are given.
-      - `num_rounds`: split the keywords across that many rounds as evenly as
-        possible (earlier rounds get the extra keyword when it doesn't divide).
+      - Both given: exactly `num_rounds` rounds of `keywords_per_round` keywords each,
+        taking only the first num_rounds x keywords_per_round active keywords
+        (1 round of 2 with 30 keywords in the pool = 1 round, 2 keywords).
+      - Only `keywords_per_round`: chunk the whole active pool; round count follows.
+      - Only `num_rounds`: split the active pool across that many rounds evenly.
 
     Refuses (returns None) if any round has already been played, to protect results;
     reset the game first. Existing pending rounds are replaced.
     """
     if game.rounds.exclude(status=Round.Status.PENDING).exists():
         return None
-    keywords = list(game.keywords.all())
+    keywords = list(game.keywords.filter(is_active=True))
     if not keywords:
         return None
 
     if keywords_per_round and keywords_per_round >= 1:
         keywords_per_round = min(keywords_per_round, len(keywords))
+        if num_rounds and num_rounds >= 1:
+            keywords = keywords[:num_rounds * keywords_per_round]
         chunks = [keywords[i:i + keywords_per_round]
                   for i in range(0, len(keywords), keywords_per_round)]
     else:
@@ -249,8 +311,8 @@ def resolve_round(round: Round):
             TeamBid(
                 team_id=str(b.team_id),
                 max_bid=float(b.max_bid),
-                quality_score=float(b.quality_score if b.quality_score is not None
-                                    else DEFAULT_HUMAN_QUALITY),
+                quality_score=team_quality_for_resolve(round, b.team, keyword,
+                                                       b.quality_score),
                 budget_remaining=budget_share[b.team_id],
             )
             for b in bids

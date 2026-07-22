@@ -44,6 +44,29 @@ class Game(models.Model):
     min_bid = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"),
                                   help_text="Lowest bid students may enter; 0 lets any non-negative bid through (keyword reserve prices still act as the auction floor).")
     ad_slots = models.PositiveIntegerField(default=3, help_text="Ad positions available per keyword.")
+    # Team Mode (default) or Individual Mode (every player is their own team).
+    class PlayMode(models.TextChoices):
+        TEAM = "team", "Team Mode"
+        INDIVIDUAL = "individual", "Individual Mode"
+
+    play_mode = models.CharField(max_length=12, choices=PlayMode.choices, default=PlayMode.TEAM)
+
+    # --- Quality score settings ---
+    class QualityMode(models.TextChoices):
+        UNIFORM = "uniform", "Uniform Player Quality Score(s)"
+        RANDOM = "random", "Randomize Player Quality Score(s)"
+        MANUAL = "manual", "Manually Set Player Quality Score(s)"
+
+    quality_mode = models.CharField(max_length=10, choices=QualityMode.choices,
+                                    default=QualityMode.UNIFORM)
+    quality_uniform = models.FloatField(default=5.0, help_text="Quality for every player in Uniform mode.")
+    quality_min = models.FloatField(default=0.0, help_text="Random mode: lower bound.")
+    quality_max = models.FloatField(default=10.0, help_text="Random mode: upper bound.")
+    quality_apply_bots = models.BooleanField(default=False,
+                                             help_text="Apply the quality score settings to bots too.")
+    quality_show_players = models.BooleanField(default=True,
+                                               help_text="Show players their per-keyword quality scores.")
+
     max_team_size = models.PositiveIntegerField(
         default=4, validators=[MinValueValidator(1)],
         help_text="Maximum members per team. Set to 1 to force solo play.",
@@ -86,6 +109,8 @@ class Keyword(models.Model):
     reserve_price = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.50"),
                                         help_text="Floor CPC paid by the lowest shown ad.")
     notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True,
+                                    help_text="Inactive keywords stay in the list but are left out of the round schedule.")
 
     class Meta:
         ordering = ["order", "id"]
@@ -115,6 +140,9 @@ class Team(models.Model):
     name = models.CharField(max_length=80)
 
     budget_remaining = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    # Manual quality mode: this team's per-keyword quality is drawn in [min, max].
+    quality_min = models.FloatField(default=0.0)
+    quality_max = models.FloatField(default=10.0)
     cumulative_spend = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     cumulative_revenue = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     cumulative_profit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))

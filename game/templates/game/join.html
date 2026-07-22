@@ -18,6 +18,14 @@
       {% endif %}
       <label for="display_name">Your name</label>
       <input type="text" id="display_name" name="display_name" autocomplete="off" required autofocus>
+      {% if not game or game.play_mode != "individual" %}
+        <label style="font-weight:normal;margin-top:10px;display:block">
+          <input type="checkbox" name="play_individually" value="1"> Play Individually
+          <span class="note">(skip team selection — you'll be your own one-person team)</span>
+        </label>
+      {% else %}
+        <p class="note" style="margin-top:10px">This game is in Individual Mode — you'll play as your own team.</p>
+      {% endif %}
       <div style="margin-top:16px"><button type="submit">Continue</button></div>
     </form>
   </div>

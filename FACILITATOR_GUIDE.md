@@ -11,6 +11,28 @@ There are three screens:
 
 ---
 
+## Newer setup features (quick reference)
+
+- **Setup autosaves.** Settings, keyword edits, quality settings, and bot controls save
+  as you type or click — a green "Saved" toast confirms each change. Action buttons
+  (build schedule, import, starter pack) still exist because those are one-shot actions.
+- **Active keywords.** Untick a keyword's Active box to bench it without deleting it;
+  only active keywords enter the round schedule. The keyword list scrolls (about ten
+  rows visible) so big pools stay manageable.
+- **Flexible schedules.** Fill both boxes in Round schedule for exact control — 1 round
+  x 2 keywords per round uses just the first two active keywords, even with 30 in the
+  pool. Not every keyword has to be played.
+- **Team Mode vs Individual Mode.** A setting under Settings. Individual Mode seats
+  every player on a personal one-person team as soon as they join; in Team Mode,
+  players can still tick "Play Individually" on the entry screen. The team list on the
+  pick-a-team page refreshes automatically so newly created teams appear right away.
+- **Quality scores.** Three modes in the Quality scores card: Uniform (everyone gets
+  the same score, default 5), Randomize (per-keyword rolls in your min–max range,
+  equalized so every player's scores sum to the same round total), and Manual (a
+  min–max range slider per team — handicapping). Optional checkboxes apply the
+  settings to bots and show players their per-keyword scores on the bid form
+  (on by default — it helps decision making, since Ad Rank = bid x quality).
+
 ## The 5-minute path (after the app is deployed)
 
 1. Log in once at `/admin/login/` with your facilitator (superuser) account.

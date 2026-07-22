@@ -199,7 +199,7 @@
 
     <div class="card">
       <h2>Bots</h2>
-      <form method="post" action="{% url 'game:fac_bots' code=game.code %}">
+      <form method="post" action="{% url 'game:fac_bots' code=game.code %}" data-autosave>
         {% csrf_token %}
         <div style="display:flex;gap:12px">
           <div style="flex:1"><label for="count">How many</label>
@@ -207,8 +207,8 @@
           <div style="flex:1"><label for="aggr">Aggressiveness</label>
             <input type="number" id="aggr" name="aggressiveness" step="0.05" min="0" value="1.0"></div>
         </div>
-        <div style="margin-top:12px"><button type="submit">Apply</button></div>
       </form>
+      <p class="note">Changes save automatically.</p>
       <p class="note" style="margin-top:8px">Current bots:
         {% for b in bots %}<span class="chip bot">{{ b.name }}</span>{% empty %}none{% endfor %}</p>
     </div>
@@ -244,4 +244,39 @@
         {% csrf_token %}<button type="submit" class="secondary">Reset game</button></form>
     </div>
   </div>
+<style>
+  #save-toast { position: fixed; bottom: 18px; right: 18px; background: #1d7a3d; color: #fff;
+    padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .25s;
+    pointer-events: none; z-index: 50; box-shadow: 0 2px 10px rgba(0,0,0,.2); }
+  #save-toast.err { background: #a33; }
+  #save-toast.show { opacity: 1; }
+</style>
+<div id="save-toast">Saved</div>
+<script>
+(function () {
+  const toast = document.getElementById("save-toast");
+  let tt = null;
+  function notify(msg, ok) {
+    toast.textContent = msg || (ok ? "Saved" : "Couldn't save");
+    toast.classList.toggle("err", !ok);
+    toast.classList.add("show");
+    clearTimeout(tt); tt = setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+  const timers = new Map();
+  document.querySelectorAll("form[data-autosave]").forEach(form => {
+    function save() {
+      fetch(form.action, { method: "POST", body: new FormData(form),
+                           headers: { "X-Requested-With": "fetch" },
+                           credentials: "same-origin" })
+        .then(r => r.json()).then(d => notify(d.message, d.ok))
+        .catch(() => notify("Couldn't save — check your connection.", false));
+    }
+    form.addEventListener("submit", e => { e.preventDefault(); save(); });
+    form.addEventListener("input", () => {
+      clearTimeout(timers.get(form));
+      timers.set(form, setTimeout(save, 700));
+    });
+  });
+})();
+</script>
 {% endblock %}

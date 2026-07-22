@@ -34,6 +34,7 @@
         <div style="overflow-x:auto"><table>
           <thead><tr><th>Keyword</th><th></th>
             <th class="num" title="Bids below this floor are never shown — like Google's first-page bid minimum">Price floor</th>
+            {% if game.quality_show_players %}<th class="num" title="Your quality score on this keyword. Ad Rank = bid × quality, so a high score is a discount and a low one is a handicap">Your quality</th>{% endif %}
             <th class="num" style="width:180px">Max bid per click</th></tr></thead>
           <tbody>
             {% for kb in keyword_bids %}
@@ -41,6 +42,7 @@
                 <td><span class="kw">{{ kb.keyword.label }}</span></td>
                 <td><span class="chip">{{ kb.keyword.asset_class }}</span></td>
                 <td class="num">{{ kb.keyword.reserve_price }}</td>
+                {% if game.quality_show_players %}<td class="num">{% if kb.quality != None %}{{ kb.quality }}{% else %}—{% endif %}</td>{% endif %}
                 <td class="num">
                   <input type="number" step="0.01" min="0" name="bid_{{ kb.keyword.id }}"
                          value="{% if kb.bid %}{{ kb.bid.max_bid }}{% endif %}"

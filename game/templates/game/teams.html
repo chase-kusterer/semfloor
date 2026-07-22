@@ -1,6 +1,24 @@
 {% extends "game/base.html" %}
-{% block title %}Pick a team — {{ game.name }}{% endblock %}
-{% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
+{% block title %}Pick a team — {{ game.name }}  <p class="note" style="margin-top:10px">This list refreshes automatically — new teams appear within a few seconds.</p>
+  <script>
+    // Light auto-refresh: reload unless the player is mid-typing a team name.
+    setInterval(function () {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && el.value) return;
+      window.location.reload();
+    }, 5000);
+  </script>
+{% endblock %}
+{% block topbar_extra %}<span class="code">{{ game.code }}</span>  <p class="note" style="margin-top:10px">This list refreshes automatically — new teams appear within a few seconds.</p>
+  <script>
+    // Light auto-refresh: reload unless the player is mid-typing a team name.
+    setInterval(function () {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && el.value) return;
+      window.location.reload();
+    }, 5000);
+  </script>
+{% endblock %}
 {% block content %}
   <h1>Pick a team</h1>
   <p class="sub">Teams can have up to {{ game.max_team_size }} member{{ game.max_team_size|pluralize }}.
@@ -45,4 +63,13 @@
       </form>
     </div>
   </div>
+  <p class="note" style="margin-top:10px">This list refreshes automatically — new teams appear within a few seconds.</p>
+  <script>
+    // Light auto-refresh: reload unless the player is mid-typing a team name.
+    setInterval(function () {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && el.value) return;
+      window.location.reload();
+    }, 5000);
+  </script>
 {% endblock %}

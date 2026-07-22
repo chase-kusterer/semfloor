@@ -2,6 +2,11 @@
 {% block title %}Recap — {{ game.name }}{% endblock %}
 {% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
 {% block content %}
+  <div class="view-toggle" style="display:flex;gap:8px;margin-bottom:12px">
+    <a href="{% url 'game:console' code=game.code %}"><button type="button" class="secondary">Planner</button></a>
+    <a href="{% url 'game:board' code=game.code %}"><button type="button" class="secondary">Big Board</button></a>
+    <a href="{% url 'game:recap' code=game.code %}"><button type="button">Recap</button></a>
+  </div>
 <div id="recap" data-state-url="{{ state_url }}" class="board-wrap" style="margin:0 auto">
   <h1>{{ game.name }} — recap</h1>
   <p class="sub">Cumulative profit &amp; loss across revealed rounds. Fills in live as each round is revealed.</p>

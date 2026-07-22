@@ -191,6 +191,7 @@ def console(request, code):
     return render(request, "game/console.html", {
         "game": game,
         "team": team,
+        "has_recap": game.rounds.filter(status=Round.Status.REVEALED).exists(),
         "membership": membership,
         "current_round": current,
         "keyword_bids": keyword_bids,
@@ -746,7 +747,9 @@ def setup_build_rounds(request, code):
     keywords_per_round = _int(kpr_raw, 0) if kpr_raw else None
     if num_rounds is None and keywords_per_round is None:
         num_rounds = game.num_rounds
-    rounds = services.build_rounds(game, num_rounds, keywords_per_round=keywords_per_round)
+    randomize = request.POST.get("randomize_keywords") in ("1", "true", "on")
+    rounds = services.build_rounds(game, num_rounds, keywords_per_round=keywords_per_round,
+                                   randomize=randomize)
     if rounds is None:
         if game.rounds.exclude(status=Round.Status.PENDING).exists():
             messages.error(request, "Rounds have been played — reset the game before rebuilding the schedule.")

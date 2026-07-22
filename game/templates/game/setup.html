@@ -197,7 +197,7 @@
         <label style="font-weight:normal"><input type="checkbox" name="quality_apply_bots" value="1"
                {% if game.quality_apply_bots %}checked{% endif %}> Apply quality score settings to bots?</label><br>
         <label style="font-weight:normal"><input type="checkbox" name="quality_show_players" value="1"
-               {% if game.quality_show_players %}checked{% endif %}> Show Players Quality Score</label>
+               {% if game.quality_show_players %}checked{% endif %}> Show Quality Scores to Players</label>
       </div>
       <p class="note">Ad Rank = bid × quality, so quality is each player's private edge (or handicap) in the
         auction. When shown, players see their score next to each keyword while bidding.</p>
@@ -242,10 +242,14 @@
         <input type="number" id="num_rounds" name="num_rounds" min="1" value="{{ game.num_rounds }}" style="max-width:120px"></div>
       <div><label for="keywords_per_round">Keywords per round <span class="note" style="font-weight:normal">(optional)</span></label>
         <input type="number" id="keywords_per_round" name="keywords_per_round" min="1" placeholder="e.g. 2" style="max-width:130px"></div>
+      <label style="font-weight:normal;white-space:nowrap;margin-bottom:6px" title="Draw keywords from the active pool at random instead of top-to-bottom list order">
+        <input type="checkbox" name="randomize_keywords" value="1" checked> Randomize keyword selection</label>
       <button type="submit" {% if played %}disabled{% endif %}>Build / rebuild schedule</button>
     </form>
     <p class="note">Only <strong>Active</strong> keywords are scheduled, and not all of them have to be:
-      fill <strong>both boxes</strong> for exact control (1 round × 2 per round = 1 round using just the
+      with <strong>Randomize keyword selection</strong> on (the default) they're drawn from the active pool
+      at random, and unticking it uses top-to-bottom list order.
+      Fill <strong>both boxes</strong> for exact control (1 round × 2 per round = 1 round using just the
       first 2 active keywords). Fill only <strong>keywords per round</strong> to chunk the whole active
       pool, or only <strong>number of rounds</strong> to split it evenly. Rebuild any time before the
       first round opens.</p>
@@ -266,13 +270,29 @@
   </div>
 
 <style>
-  .dual-slider { position: relative; height: 28px; }
-  .dual-slider input[type=range] {
-    position: absolute; left: 0; right: 0; top: 6px; width: 100%;
-    pointer-events: none; background: transparent; -webkit-appearance: none; appearance: none;
+  .dual-slider { position: relative; height: 30px; }
+  /* A clearly visible amber track drawn once behind both handles. */
+  .dual-slider::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 13px; height: 6px;
+    background: #f5c46b; border: 1px solid #b8860b; border-radius: 4px;
   }
-  .dual-slider input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: auto; }
-  .dual-slider input[type=range]::-moz-range-thumb { pointer-events: auto; }
+  .dual-slider input[type=range] {
+    position: absolute; left: 0; right: 0; top: 6px; width: 100%; margin: 0;
+    pointer-events: none; background: transparent; -webkit-appearance: none; appearance: none;
+    accent-color: #b45309;
+  }
+  .dual-slider input[type=range]::-webkit-slider-runnable-track { background: transparent; }
+  .dual-slider input[type=range]::-moz-range-track { background: transparent; }
+  .dual-slider input[type=range]::-webkit-slider-thumb {
+    pointer-events: auto; -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #b45309; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+    margin-top: 6px; position: relative; z-index: 2;
+  }
+  .dual-slider input[type=range]::-moz-range-thumb {
+    pointer-events: auto; width: 16px; height: 16px; border-radius: 50%;
+    background: #b45309; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
   #save-toast {
     position: fixed; bottom: 18px; right: 18px; background: #1d7a3d; color: #fff;
     padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .25s;

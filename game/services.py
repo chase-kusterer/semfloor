@@ -202,7 +202,8 @@ def team_quality_for_resolve(rnd: Round, team, keyword, stored_bid_quality):
 
 
 
-def build_rounds(game, num_rounds: int | None = None, keywords_per_round: int | None = None):
+def build_rounds(game, num_rounds: int | None = None, keywords_per_round: int | None = None,
+                 randomize: bool = False):
     """
     (Re)build the round schedule from the game's ACTIVE keywords, in keyword order.
     Not every keyword has to be used:
@@ -221,6 +222,8 @@ def build_rounds(game, num_rounds: int | None = None, keywords_per_round: int | 
     keywords = list(game.keywords.filter(is_active=True))
     if not keywords:
         return None
+    if randomize:
+        random.shuffle(keywords)   # draw from the pool at random instead of list order
 
     if keywords_per_round and keywords_per_round >= 1:
         keywords_per_round = min(keywords_per_round, len(keywords))

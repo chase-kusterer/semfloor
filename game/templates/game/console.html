@@ -2,6 +2,11 @@
 {% block title %}{{ team.name }} — console{% endblock %}
 {% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
 {% block content %}
+  <div class="view-toggle" style="display:flex;gap:8px;margin-bottom:12px">
+    <a href="{% url 'game:console' code=game.code %}"><button type="button">Planner</button></a>
+    <a href="{% url 'game:board' code=game.code %}"><button type="button" class="secondary">Big Board</button></a>
+    {% if has_recap %}<a href="{% url 'game:recap' code=game.code %}"><button type="button" class="secondary">Recap</button></a>{% endif %}
+  </div>
 <div id="console" data-state-url="{{ state_url }}">
   <h1>{{ team.name }}</h1>
   <p class="sub">
@@ -89,7 +94,13 @@
 <script>
   const root = document.getElementById("console");
   const myTeam = "{{ team.name|escapejs }}";
+  // What this page was rendered against; if the facilitator moves the round on
+  // (open/close/resolve/reveal or a new round), reload so the bid form and
+  // results sections match the new phase.
+  const renderedRound = "{{ current_round.number|default:'none' }}:{{ current_round.status|default:'none' }}";
   function render(s){
+    const nowRound = s.current_round ? (s.current_round.number + ":" + s.current_round.status) : "none:none";
+    if (nowRound !== renderedRound) { window.location.reload(); return; }
     if (s.you){
       document.getElementById("s-budget").textContent = money(s.you.budget_remaining);
       document.getElementById("s-profit").textContent = money(s.you.cumulative_profit);

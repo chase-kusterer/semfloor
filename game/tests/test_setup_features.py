@@ -237,8 +237,67 @@ class AutosaveEndpointTests(TestCase):
         self.assertContains(r, "Quality scores")
         self.assertContains(r, "Uniform Player Quality Score(s)")
         self.assertContains(r, "Apply quality score settings to bots?")
-        self.assertContains(r, "Show Players Quality Score")
+        self.assertContains(r, "Show Quality Scores to Players")
         self.assertContains(r, "Team Mode")
         self.assertContains(r, "Individual Mode")
         self.assertContains(r, "kw-scroll")
         self.assertContains(r, "save-toast")
+
+
+class ViewTogglesAndScheduleRandomTests(TestCase):
+    def setUp(self):
+        User.objects.create_superuser("prof3", "p3@example.com", "pw")
+        self.fac = Client()
+        self.fac.force_login(User.objects.get(username="prof3"))
+        self.game = Game.objects.create(code="TGL", name="Toggle",
+                                        starting_budget=Decimal("1000.00"))
+        _mk_keywords(self.game, 12)
+
+    def test_randomized_schedule_draws_from_pool(self):
+        # With a fixed order it would always pick kw1..kw4; over several shuffles
+        # of 12 keywords the selection must differ at least once.
+        selections = set()
+        for _ in range(6):
+            self.fac.post("/g/TGL/setup/rounds/build/",
+                          {"num_rounds": "2", "keywords_per_round": "2",
+                           "randomize_keywords": "1"})
+            labels = tuple(sorted(
+                k.label for r in self.game.rounds.all() for k in r.keywords.all()))
+            selections.add(labels)
+        self.assertGreater(len(selections), 1)
+        # Unticked -> deterministic list order.
+        self.fac.post("/g/TGL/setup/rounds/build/",
+                      {"num_rounds": "2", "keywords_per_round": "2"})
+        labels = [k.label for r in self.game.rounds.order_by("number")
+                  for k in r.keywords.order_by("order")]
+        self.assertEqual(labels, ["kw1", "kw2", "kw3", "kw4"])
+
+    def test_console_has_toggles_and_reload_marker(self):
+        services.build_rounds(self.game, 2)
+        team = Team.objects.create(game=self.game, name="T",
+                                   budget_remaining=Decimal("1000.00"))
+        stu = Client()
+        stu.post("/join/", {"code": "TGL", "display_name": "Ana"})
+        stu.post("/g/TGL/teams/join/", {"team_id": team.id})
+        r = stu.get("/g/TGL/play/")
+        self.assertContains(r, ">Planner<")
+        self.assertContains(r, ">Big Board<")
+        self.assertNotContains(r, ">Recap<")   # nothing revealed yet
+        self.assertContains(r, "renderedRound")
+        # Reveal a round -> Recap button appears.
+        rnd = services.open_next_round(self.game)
+        services.close_round(rnd)
+        services.resolve_round(rnd)
+        services.reveal_round(rnd)
+        r = stu.get("/g/TGL/play/")
+        self.assertContains(r, ">Recap<")
+
+    def test_board_and_recap_have_toggles(self):
+        anon = Client()
+        self.assertContains(anon.get("/g/TGL/board/"), ">Planner<")
+        self.assertContains(anon.get("/g/TGL/recap/"), ">Planner<")
+
+    def test_setup_renders_randomize_checkbox_and_new_label(self):
+        r = self.fac.get("/g/TGL/setup/")
+        self.assertContains(r, "Randomize keyword selection")
+        self.assertContains(r, "Show Quality Scores to Players")

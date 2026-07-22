@@ -301,3 +301,94 @@ class ViewTogglesAndScheduleRandomTests(TestCase):
         r = self.fac.get("/g/TGL/setup/")
         self.assertContains(r, "Randomize keyword selection")
         self.assertContains(r, "Show Quality Scores to Players")
+
+
+class TeamPlayerManagementTests(TestCase):
+    def setUp(self):
+        User.objects.create_superuser("prof4", "p4@example.com", "pw")
+        self.fac = Client()
+        self.fac.force_login(User.objects.get(username="prof4"))
+        self.game = Game.objects.create(code="MGMT", name="Mgmt",
+                                        starting_budget=Decimal("1000.00"),
+                                        max_team_size=2)
+        self.t1 = Team.objects.create(game=self.game, name="Alpha",
+                                      budget_remaining=Decimal("1000.00"))
+        self.t2 = Team.objects.create(game=self.game, name="Beta",
+                                      budget_remaining=Decimal("1000.00"))
+        self.m1 = TeamMember.objects.create(game=self.game, team=self.t1,
+                                            session_key="s1", display_name="Ana")
+
+    def _post(self, path, data):
+        return self.fac.post(path, data, headers={"X-Requested-With": "fetch"})
+
+    def test_add_rename_delete_team(self):
+        r = self._post("/g/MGMT/facilitator/teams/add/", {"team_name": "Gamma"})
+        self.assertTrue(r.json()["ok"])
+        team = Team.objects.get(game=self.game, name="Gamma")
+        self.assertEqual(team.budget_remaining, Decimal("1000.00"))
+        # duplicate rejected
+        r = self._post("/g/MGMT/facilitator/teams/add/", {"team_name": "Gamma"})
+        self.assertFalse(r.json()["ok"])
+        # rename
+        r = self._post("/g/MGMT/facilitator/teams/edit/",
+                       {"team_id": team.id, "team_name": "Delta"})
+        self.assertTrue(r.json()["ok"])
+        team.refresh_from_db()
+        self.assertEqual(team.name, "Delta")
+        # rename collision rejected
+        r = self._post("/g/MGMT/facilitator/teams/edit/",
+                       {"team_id": team.id, "team_name": "Alpha"})
+        self.assertFalse(r.json()["ok"])
+        # delete
+        r = self._post("/g/MGMT/facilitator/teams/delete/", {"team_id": team.id})
+        self.assertTrue(r.json()["ok"])
+        self.assertFalse(Team.objects.filter(pk=team.pk).exists())
+
+    def test_rename_move_and_remove_player(self):
+        r = self._post("/g/MGMT/facilitator/members/edit/",
+                       {"member_id": self.m1.id, "display_name": "Ana Lucia",
+                        "team_id": self.t2.id})
+        self.assertTrue(r.json()["ok"])
+        self.m1.refresh_from_db()
+        self.assertEqual(self.m1.display_name, "Ana Lucia")
+        self.assertEqual(self.m1.team_id, self.t2.id)
+        # moving into a full team is rejected
+        TeamMember.objects.create(game=self.game, team=self.t1, session_key="s2")
+        TeamMember.objects.create(game=self.game, team=self.t1, session_key="s3")
+        r = self._post("/g/MGMT/facilitator/members/edit/",
+                       {"member_id": self.m1.id, "display_name": "Ana Lucia",
+                        "team_id": self.t1.id})
+        self.assertFalse(r.json()["ok"])
+        self.m1.refresh_from_db()
+        self.assertEqual(self.m1.team_id, self.t2.id)  # unchanged
+        # remove
+        r = self._post("/g/MGMT/facilitator/members/delete/", {"member_id": self.m1.id})
+        self.assertTrue(r.json()["ok"])
+        self.assertFalse(TeamMember.objects.filter(pk=self.m1.pk).exists())
+
+    def test_removed_player_can_rejoin(self):
+        stu = Client()
+        stu.post("/join/", {"code": "MGMT", "display_name": "Cy"})
+        stu.post("/g/MGMT/teams/join/", {"team_id": self.t2.id})
+        member = TeamMember.objects.get(team=self.t2)
+        self._post("/g/MGMT/facilitator/members/delete/", {"member_id": member.id})
+        # Next console visit sends them back to team selection…
+        r = stu.get("/g/MGMT/play/")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/teams/", r.headers["Location"])
+        # …and they can take a seat again.
+        stu.post("/g/MGMT/teams/join/", {"team_id": self.t2.id})
+        self.assertEqual(self.t2.members.count(), 1)
+
+    def test_dashboard_renders_management_ui(self):
+        r = self.fac.get("/g/MGMT/facilitator/")
+        self.assertContains(r, "Teams &amp; players")
+        self.assertContains(r, "Add team")
+        self.assertContains(r, 'name="display_name"')
+        self.assertContains(r, "Move player to another team")
+
+    def test_management_is_facilitator_only(self):
+        anon = Client()
+        r = anon.post("/g/MGMT/facilitator/teams/add/", {"team_name": "X"})
+        self.assertNotEqual(r.status_code, 200)
+        self.assertFalse(Team.objects.filter(game=self.game, name="X").exists())

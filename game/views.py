@@ -391,6 +391,86 @@ def fac_event(request, code):
     return redirect("game:facilitator", code=code)
 
 
+# --- team & player management (facilitator) ---------------------------------
+
+@require_POST
+@facilitator_required
+def fac_team_add(request, code):
+    """Create an empty team players can join (or that plays as a no-show)."""
+    game = get_object_or_404(Game, code=code)
+    name = (request.POST.get("team_name") or "").strip()
+    if not name:
+        return _saved(request, "Enter a team name.", redirect_to="game:facilitator",
+                      code=code, ok=False)
+    if game.teams.filter(name=name).exists():
+        return _saved(request, f"There's already a team called “{name}”.",
+                      redirect_to="game:facilitator", code=code, ok=False)
+    Team.objects.create(game=game, name=name, budget_remaining=game.starting_budget)
+    return _saved(request, f"Team “{name}” created.", redirect_to="game:facilitator", code=code)
+
+
+@require_POST
+@facilitator_required
+def fac_team_edit(request, code):
+    """Rename a team (autosaves)."""
+    game = get_object_or_404(Game, code=code)
+    team = get_object_or_404(Team, game=game, pk=request.POST.get("team_id"), is_bot=False)
+    name = (request.POST.get("team_name") or "").strip()
+    if not name:
+        return _saved(request, "A team needs a name.", redirect_to="game:facilitator",
+                      code=code, ok=False)
+    if game.teams.filter(name=name).exclude(pk=team.pk).exists():
+        return _saved(request, f"There's already a team called “{name}”.",
+                      redirect_to="game:facilitator", code=code, ok=False)
+    team.name = name
+    team.save()
+    return _saved(request, f"Team renamed to “{name}”.", redirect_to="game:facilitator", code=code)
+
+
+@require_POST
+@facilitator_required
+def fac_team_delete(request, code):
+    """Delete a team, its seats, and (cascade) its bids and results."""
+    game = get_object_or_404(Game, code=code)
+    team = get_object_or_404(Team, game=game, pk=request.POST.get("team_id"), is_bot=False)
+    name = team.name
+    team.delete()
+    return _saved(request, f"Team “{name}” deleted (its members, bids and results went with it).",
+                  redirect_to="game:facilitator", code=code)
+
+
+@require_POST
+@facilitator_required
+def fac_member_edit(request, code):
+    """Rename a player and/or move them to another team (autosaves)."""
+    game = get_object_or_404(Game, code=code)
+    member = get_object_or_404(TeamMember, game=game, pk=request.POST.get("member_id"))
+    if "display_name" in request.POST:
+        member.display_name = (request.POST.get("display_name") or "").strip()
+    target_id = request.POST.get("team_id")
+    if target_id and str(member.team_id) != str(target_id):
+        target = get_object_or_404(Team, game=game, pk=target_id, is_bot=False)
+        if not target.has_open_seat():
+            return _saved(request, f"“{target.name}” is full ({game.max_team_size} seats).",
+                          redirect_to="game:facilitator", code=code, ok=False)
+        member.team = target
+    member.save()
+    label = member.display_name or "Player"
+    return _saved(request, f"“{label}” saved.", redirect_to="game:facilitator", code=code)
+
+
+@require_POST
+@facilitator_required
+def fac_member_delete(request, code):
+    """Remove a player's seat; they can rejoin from the student link."""
+    game = get_object_or_404(Game, code=code)
+    member = get_object_or_404(TeamMember, game=game, pk=request.POST.get("member_id"))
+    label = member.display_name or "Player"
+    member.delete()
+    return _saved(request, f"“{label}” removed — they can rejoin from the student link.",
+                  redirect_to="game:facilitator", code=code)
+
+
 @require_POST
 @facilitator_required
 def fac_bots(request, code):

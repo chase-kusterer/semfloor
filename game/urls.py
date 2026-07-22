@@ -36,6 +36,11 @@ urlpatterns = [
     path("g/<str:code>/facilitator/round/reveal/", views.fac_reveal_round, name="fac_reveal_round"),
     path("g/<str:code>/facilitator/event/", views.fac_event, name="fac_event"),
     path("g/<str:code>/facilitator/bots/", views.fac_bots, name="fac_bots"),
+    path("g/<str:code>/facilitator/teams/add/", views.fac_team_add, name="fac_team_add"),
+    path("g/<str:code>/facilitator/teams/edit/", views.fac_team_edit, name="fac_team_edit"),
+    path("g/<str:code>/facilitator/teams/delete/", views.fac_team_delete, name="fac_team_delete"),
+    path("g/<str:code>/facilitator/members/edit/", views.fac_member_edit, name="fac_member_edit"),
+    path("g/<str:code>/facilitator/members/delete/", views.fac_member_delete, name="fac_member_delete"),
     path("g/<str:code>/facilitator/reset/", views.fac_reset, name="fac_reset"),
     path("g/<str:code>/facilitator/results.csv", views.fac_results_export, name="fac_results_export"),
 

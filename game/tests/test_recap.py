@@ -54,4 +54,4 @@ class RecapTests(TestCase):
         self._play_round()
         r = Client().get(f"/g/{self.game.code}/recap/")
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "P&amp;L over rounds")
+        self.assertContains(r, "P&amp;L over Rounds")

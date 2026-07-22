@@ -126,8 +126,8 @@ class ResultsExportAndStateTests(TestCase):
         r = self.fac.get(f"/g/{self.game.code}/facilitator/results.csv")
         self.assertEqual(r.status_code, 200)
         body = r.content.decode()
-        self.assertIn("Bid amount", body)
-        self.assertIn("Next highest bid", body)
+        self.assertIn("Bid Amount", body)
+        self.assertIn("Next Highest Bid", body)
         self.assertIn("Impressions", body)
         self.assertIn("solo", body)
         self.assertIn("1.50", body)
@@ -197,7 +197,7 @@ class ZeroMinBidAndVisibilityTests(TestCase):
 
     def test_console_shows_price_floor(self):
         r = self.stu.get("/g/ZERO/play/")
-        self.assertContains(r, "Price floor")
+        self.assertContains(r, "Price Floor")
         self.assertContains(r, "1.00")
 
     def test_facilitator_table_and_csv_show_quality(self):
@@ -207,11 +207,11 @@ class ZeroMinBidAndVisibilityTests(TestCase):
         services.resolve_round(self.rnd)
         r = self.fac.get("/g/ZERO/facilitator/")
         self.assertContains(r, "Quality")
-        self.assertContains(r, "Ad rank")
+        self.assertContains(r, "Ad Rank")
         csv_r = self.fac.get("/g/ZERO/facilitator/results.csv")
         body = csv_r.content.decode()
-        self.assertIn("Quality score", body)
-        self.assertIn("Ad rank", body)
+        self.assertIn("Quality Score", body)
+        self.assertIn("Ad Rank", body)
         self.assertIn("5.0", body)  # default human quality back-computed
 
     def test_bot_quality_symmetric_around_human_default(self):
@@ -255,8 +255,8 @@ class TabbedResultsAndExportOptionsTests(TestCase):
         body = r.content.decode()
         self.assertEqual(body.count('class="round-tab'), 2)
         self.assertEqual(body.count('class="round-pane"'), 2)
-        self.assertIn("Download current round", body)
-        self.assertIn("Download all rounds", body)
+        self.assertIn("Download Current Round", body)
+        self.assertIn("Download All Rounds", body)
         self.assertIn("results-filter", body)
         self.assertIn('data-sort="num"', body)
 

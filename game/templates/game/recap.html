@@ -3,29 +3,29 @@
 {% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
 {% block content %}
   <div class="view-toggle" style="display:flex;gap:8px;margin-bottom:12px">
-    <a href="{% url 'game:console' code=game.code %}"><button type="button" class="secondary">Planner</button></a>
-    <a href="{% url 'game:board' code=game.code %}"><button type="button" class="secondary">Big Board</button></a>
+    <a href="{% url 'game:console' code=game.code %}"><button type="button" class="btn secondary">Planner</button></a>
+    <a href="{% url 'game:board' code=game.code %}"><button type="button" class="btn secondary">Big Board</button></a>
     <a href="{% url 'game:recap' code=game.code %}"><button type="button">Recap</button></a>
   </div>
 <div id="recap" data-state-url="{{ state_url }}" class="board-wrap" style="margin:0 auto">
   <h1>{{ game.name }} — recap</h1>
-  <p class="sub">Cumulative profit &amp; loss across revealed rounds. Fills in live as each round is revealed.</p>
+  <p class="sub">Cumulative Profit &amp; loss across revealed rounds. Fills in live as each round is revealed.</p>
 
   <div class="card">
-    <h2>P&amp;L over rounds</h2>
+    <h2>P&amp;L over Rounds</h2>
     <div id="pnl-chart"><p class="note">Waiting for the first revealed round…</p></div>
   </div>
 
   <div class="grid two">
     <div class="card">
-      <h2>Final standings</h2>
+      <h2>Final Standings</h2>
       <table>
         <thead><tr><th>#</th><th>Team</th><th class="num">Revenue</th><th class="num">Spend</th><th class="num">Profit</th></tr></thead>
         <tbody id="standings-body"></tbody>
       </table>
     </div>
     <div class="card">
-      <h2>Profit by round</h2>
+      <h2>Profit by Round</h2>
       <div style="overflow-x:auto"><table id="matrix"><thead id="matrix-head"></thead><tbody id="matrix-body"></tbody></table></div>
     </div>
   </div>

@@ -83,6 +83,19 @@ def _team_history(game, team):
     return rows
 
 
+def _timer_info(game, current):
+    """Countdown state for the optional round timer (display only)."""
+    if (not game.timer_enabled or current is None
+            or current.status != "open" or current.opened_at is None):
+        return None
+    from django.utils import timezone
+    elapsed = (timezone.now() - current.opened_at).total_seconds()
+    return {
+        "total": game.timer_seconds,
+        "seconds_left": max(0, int(game.timer_seconds - elapsed)),
+    }
+
+
 def _result_row(r):
     return {
         "team": r.team.name,
@@ -167,6 +180,7 @@ def build_game_state(game, team=None) -> dict:
                  "max_team_size": game.max_team_size,
                  "round_budget": float(game.starting_budget)},
         "current_round": round_info,
+        "timer": _timer_info(game, current),
         "leaderboard": leaderboard,
         # Per-team cumulative P&L across revealed rounds (for the recap chart).
         "history": _pnl_history(game),

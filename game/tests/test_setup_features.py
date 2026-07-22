@@ -234,7 +234,7 @@ class AutosaveEndpointTests(TestCase):
     def test_setup_page_renders_new_sections(self):
         self.c.post("/g/AUTO/setup/keywords/starter/")  # scroll window needs rows
         r = self.c.get("/g/AUTO/setup/")
-        self.assertContains(r, "Quality scores")
+        self.assertContains(r, "Quality Scores")
         self.assertContains(r, "Uniform Player Quality Score(s)")
         self.assertContains(r, "Apply quality score settings to bots?")
         self.assertContains(r, "Show Quality Scores to Players")
@@ -282,7 +282,8 @@ class ViewTogglesAndScheduleRandomTests(TestCase):
         r = stu.get("/g/TGL/play/")
         self.assertContains(r, ">Planner<")
         self.assertContains(r, ">Big Board<")
-        self.assertNotContains(r, ">Recap<")   # nothing revealed yet
+        # Nothing revealed yet: Recap renders as a greyed-out (disabled) button.
+        self.assertContains(r, "Available after the first round is revealed")
         self.assertContains(r, "renderedRound")
         # Reveal a round -> Recap button appears.
         rnd = services.open_next_round(self.game)
@@ -291,6 +292,7 @@ class ViewTogglesAndScheduleRandomTests(TestCase):
         services.reveal_round(rnd)
         r = stu.get("/g/TGL/play/")
         self.assertContains(r, ">Recap<")
+        self.assertNotContains(r, "Available after the first round is revealed")
 
     def test_board_and_recap_have_toggles(self):
         anon = Client()
@@ -299,7 +301,7 @@ class ViewTogglesAndScheduleRandomTests(TestCase):
 
     def test_setup_renders_randomize_checkbox_and_new_label(self):
         r = self.fac.get("/g/TGL/setup/")
-        self.assertContains(r, "Randomize keyword selection")
+        self.assertContains(r, "Randomize Keyword Selection")
         self.assertContains(r, "Show Quality Scores to Players")
 
 
@@ -382,8 +384,8 @@ class TeamPlayerManagementTests(TestCase):
 
     def test_dashboard_renders_management_ui(self):
         r = self.fac.get("/g/MGMT/facilitator/")
-        self.assertContains(r, "Teams &amp; players")
-        self.assertContains(r, "Add team")
+        self.assertContains(r, "Teams &amp; Players")
+        self.assertContains(r, "Add Team")
         self.assertContains(r, 'name="display_name"')
         self.assertContains(r, "Move player to another team")
 
@@ -392,3 +394,83 @@ class TeamPlayerManagementTests(TestCase):
         r = anon.post("/g/MGMT/facilitator/teams/add/", {"team_name": "X"})
         self.assertNotEqual(r.status_code, 200)
         self.assertFalse(Team.objects.filter(game=self.game, name="X").exists())
+
+
+class TeamSwitchAndTimerTests(TestCase):
+    """The wrong-team cookie trap and the optional round timer."""
+
+    def setUp(self):
+        self.game = Game.objects.create(code="SWT", name="Switch",
+                                        starting_budget=Decimal("1000.00"))
+        _mk_keywords(self.game, 2)
+        services.build_rounds(self.game, 1)
+        self.t1 = Team.objects.create(game=self.game, name="Wrong",
+                                      budget_remaining=Decimal("1000.00"))
+        self.t2 = Team.objects.create(game=self.game, name="Right",
+                                      budget_remaining=Decimal("1000.00"))
+        self.stu = Client()
+        self.stu.post("/join/", {"code": "SWT", "display_name": "Ana"})
+        self.stu.post("/g/SWT/teams/join/", {"team_id": self.t1.id})
+
+    def test_seated_player_can_open_team_page_and_switch(self):
+        # The old bug: this page bounced seated sessions straight to the console.
+        r = self.stu.get("/g/SWT/teams/")
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "currently on")
+        self.assertContains(r, "Wrong")
+        # Switching moves the seat — no duplicate membership.
+        self.stu.post("/g/SWT/teams/join/", {"team_id": self.t2.id})
+        self.assertEqual(TeamMember.objects.filter(game=self.game).count(), 1)
+        member = TeamMember.objects.get(game=self.game)
+        self.assertEqual(member.team_id, self.t2.id)
+
+    def test_switch_by_creating_new_team_moves_seat(self):
+        self.stu.post("/g/SWT/teams/create/", {"team_name": "Fresh"})
+        self.assertEqual(TeamMember.objects.filter(game=self.game).count(), 1)
+        member = TeamMember.objects.get(game=self.game)
+        self.assertEqual(member.team.name, "Fresh")
+
+    def test_switch_into_full_team_refused(self):
+        self.game.max_team_size = 1
+        self.game.save()
+        TeamMember.objects.create(game=self.game, team=self.t2, session_key="other")
+        self.stu.post("/g/SWT/teams/join/", {"team_id": self.t2.id})
+        member = TeamMember.objects.get(game=self.game, session_key__isnull=False,
+                                        team__in=[self.t1, self.t2],
+                                        display_name="Ana")
+        self.assertEqual(member.team_id, self.t1.id)  # stayed put
+
+    def test_console_shows_player_and_team_identity(self):
+        r = self.stu.get("/g/SWT/play/")
+        self.assertContains(r, "Ana")
+        self.assertContains(r, "Wrong")
+        self.assertContains(r, "Switch Team")
+
+    def test_timer_in_state_only_when_enabled_and_open(self):
+        from game.state import build_game_state
+        rnd = services.open_next_round(self.game)
+        s = build_game_state(self.game)
+        self.assertIsNone(s["timer"])          # disabled by default
+        self.game.timer_enabled = True
+        self.game.timer_seconds = 120
+        self.game.save()
+        s = build_game_state(self.game)
+        self.assertIsNotNone(s["timer"])
+        self.assertEqual(s["timer"]["total"], 120)
+        self.assertLessEqual(s["timer"]["seconds_left"], 120)
+        self.assertGreater(s["timer"]["seconds_left"], 110)
+        services.close_round(rnd)
+        s = build_game_state(self.game)
+        self.assertIsNone(s["timer"])          # only while a round is open
+
+    def test_timer_setting_autosaves(self):
+        User.objects.create_superuser("prof5", "p5@example.com", "pw")
+        fac = Client()
+        fac.force_login(User.objects.get(username="prof5"))
+        r = fac.post("/g/SWT/setup/settings/",
+                     {"timer_enabled": "1", "timer_seconds": "240"},
+                     headers={"X-Requested-With": "fetch"})
+        self.assertTrue(r.json()["ok"])
+        self.game.refresh_from_db()
+        self.assertTrue(self.game.timer_enabled)
+        self.assertEqual(self.game.timer_seconds, 240)

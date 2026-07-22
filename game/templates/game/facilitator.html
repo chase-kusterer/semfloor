@@ -2,29 +2,30 @@
 {% block title %}Facilitator — {{ game.name }}{% endblock %}
 {% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
 {% block content %}
-  <h1>Facilitator dashboard</h1>
+  <h1>Facilitator Dashboard</h1>
   <p class="sub">{{ game.name }} — status <span class="status {{ game.status }}">{{ game.get_status_display }}</span>
      &nbsp;·&nbsp; <a href="{% url 'game:setup_game' code=game.code %}">Game setup</a></p>
 
   <div class="card">
-    <h2>Share with students</h2>
+    <h2>Share with Students</h2>
     <p>Post this link on your course page — students click it, enter their name, and pick a team. No accounts.</p>
     <p><a href="{{ join_url }}" class="mono" id="join-link">{{ join_url }}</a>
-       <button type="button" class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('join-link').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy link',1500)})">Copy link</button></p>
+       <button type="button" class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('join-link').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Link',1500)})">Copy Link</button></p>
     <p><a class="btn" href="{% url 'game:board' code=game.code %}">Open big board</a>
        <a class="btn secondary" href="{% url 'game:recap' code=game.code %}">Open recap</a></p>
   </div>
 
   <div class="grid stats">
-    <div class="stat"><div class="label">Join code</div><div class="value">{{ game.code }}</div></div>
+    <div class="stat"><div class="label">Join Code</div><div class="value">{{ game.code }}</div></div>
     <div class="stat"><div class="label">Rounds</div><div class="value">{{ rounds|length }}</div></div>
-    <div class="stat"><div class="label">Ad slots</div><div class="value">{{ game.ad_slots }}</div></div>
-    <div class="stat"><div class="label">Max team size</div><div class="value">{{ game.max_team_size }}</div></div>
+    <div class="stat"><div class="label">Ad Slots</div><div class="value">{{ game.ad_slots }}</div></div>
+    <div class="stat"><div class="label">Max Team Size</div><div class="value">{{ game.max_team_size }}</div></div>
     <div class="stat"><div class="label">Budget / round</div><div class="value">{{ game.starting_budget }}</div></div>
   </div>
 
   <div class="card">
-    <h2>Round controls</h2>
+    <h2>Round Controls</h2>
+      <span id="round-timer" class="mono" style="display:none;font-size:1.3em;font-weight:700"></span>
     {% if current_round %}
       <p>Current: <strong>Round {{ current_round.number }}</strong>
          <span class="status {{ current_round.status }}">{{ current_round.get_status_display }}</span><br>
@@ -35,26 +36,26 @@
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       {# The lifecycle is a strict sequence; each button enables only at the right step. #}
       <form method="post" action="{% url 'game:fac_open_round' code=game.code %}">{% csrf_token %}
-        <button type="submit" {% if current_round and current_round.status != 'revealed' %}disabled{% endif %}>Open next round</button></form>
+        <button type="submit" {% if current_round and current_round.status != 'revealed' %}disabled{% endif %}>Open Next Round</button></form>
       <form method="post" action="{% url 'game:fac_close_round' code=game.code %}">{% csrf_token %}
         <button type="submit" {% if not current_round or current_round.status != 'open' %}disabled{% endif %}>Close bids</button></form>
       <form method="post" action="{% url 'game:fac_resolve_round' code=game.code %}">{% csrf_token %}
         <button type="submit" {% if not current_round or current_round.status != 'closed' %}disabled{% endif %}>Resolve</button></form>
       <form method="post" action="{% url 'game:fac_reveal_round' code=game.code %}">{% csrf_token %}
-        <button type="submit" {% if not current_round or current_round.status != 'resolved' %}disabled{% endif %}>Reveal on board</button></form>
+        <button type="submit" {% if not current_round or current_round.status != 'resolved' %}disabled{% endif %}>Reveal on Board</button></form>
     </div>
   </div>
 
   {% if results_rounds %}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <h2>Round results</h2>
+        <h2>Round Results</h2>
         <form id="results-export" method="get" action="{% url 'game:fac_results_export' code=game.code %}"
               style="display:flex;gap:14px;align-items:center">
           <label style="font-weight:normal;white-space:nowrap">
-            <input type="checkbox" class="export-choice" value="current" checked> Download current round</label>
+            <input type="checkbox" class="export-choice" value="current" checked> Download Current Round</label>
           <label style="font-weight:normal;white-space:nowrap">
-            <input type="checkbox" class="export-choice" value="all"> Download all rounds</label>
+            <input type="checkbox" class="export-choice" value="all"> Download All Rounds</label>
           <input type="hidden" name="rounds" id="export-rounds" value="">
           <button type="submit" class="secondary">Download CSV</button>
         </form>
@@ -62,7 +63,7 @@
 
       <div class="tabbar" style="display:flex;gap:6px;margin:10px 0;flex-wrap:wrap">
         {% for rr in results_rounds %}
-          <button type="button" class="round-tab secondary" data-round="{{ rr.round.number }}">
+          <button type="button" class="round-tab btn secondary" data-round="{{ rr.round.number }}">
             Round {{ rr.round.number }}</button>
         {% endfor %}
       </div>
@@ -79,8 +80,8 @@
               <th data-sort="text">Keyword</th><th data-sort="num">Pos</th><th data-sort="text">Team</th>
               <th class="num" data-sort="num" title="The team's own max bid">Bid</th>
               <th class="num" data-sort="num" title="Quality score (1–10). Ad Rank = bid × quality — this is why a lower bid can outrank a higher one">Quality</th>
-              <th class="num" data-sort="num" title="Bid × quality; slots go to the highest ad ranks">Ad rank</th>
-              <th class="num" data-sort="num" title="Bid of the ad ranked just below — under GSP this is what sets your price">Next highest bid</th>
+              <th class="num" data-sort="num" title="Bid × quality; slots go to the highest ad ranks">Ad Rank</th>
+              <th class="num" data-sort="num" title="Bid of the ad ranked just below — under GSP this is what sets your price">Next Highest Bid</th>
               <th class="num" data-sort="num" title="What the team actually paid per click">CPC</th>
               <th class="num" data-sort="num" title="Times the ad was served — must win a position to be served">Impr.</th>
               <th class="num" data-sort="num">Clicks</th>
@@ -186,7 +187,7 @@
 
   <div class="grid two">
     <div class="card">
-      <h2>Market event</h2>
+      <h2>Market Event</h2>
       <p class="note">Fire onto the current round before resolving it. Applies to all of the round's keywords.</p>
       <form method="post" action="{% url 'game:fac_event' code=game.code %}" style="display:flex;gap:8px">
         {% csrf_token %}
@@ -202,7 +203,7 @@
       <form method="post" action="{% url 'game:fac_bots' code=game.code %}" data-autosave>
         {% csrf_token %}
         <div style="display:flex;gap:12px">
-          <div style="flex:1"><label for="count">How many</label>
+          <div style="flex:1"><label for="count">How Many</label>
             <input type="number" id="count" name="count" min="0" value="{{ bots|length }}"></div>
           <div style="flex:1"><label for="aggr">Aggressiveness</label>
             <input type="number" id="aggr" name="aggressiveness" step="0.05" min="0" value="1.0"></div>
@@ -216,7 +217,7 @@
 
   <div class="grid two">
     <div class="card">
-      <h2>Teams &amp; players ({{ teams|length }})</h2>
+      <h2>Teams &amp; Players ({{ teams|length }})</h2>
       {% for t in teams %}
         <div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -258,7 +259,7 @@
       <form method="post" action="{% url 'game:fac_team_add' code=game.code %}" style="display:flex;gap:8px;margin-top:6px">
         {% csrf_token %}
         <input type="text" name="team_name" placeholder="New team name" style="flex:1">
-        <button type="submit">Add team</button>
+        <button type="submit">Add Team</button>
       </form>
       <p class="note">Renames save automatically; moving a player takes effect the moment you pick a team.
         Deleting a team also deletes its bids and results.</p>
@@ -280,7 +281,7 @@
       </table>
       <form method="post" action="{% url 'game:fac_reset' code=game.code %}"
             onsubmit="return confirm('Reset all progress? Teams and keywords are kept.');" style="margin-top:8px">
-        {% csrf_token %}<button type="submit" class="secondary">Reset game</button></form>
+        {% csrf_token %}<button type="submit" class="secondary">Reset Game</button></form>
     </div>
   </div>
 <style>
@@ -293,6 +294,27 @@
 <div id="save-toast">Saved</div>
 <script>
 (function () {
+  // --- Round Timer (mirrors the players' countdown) ---
+  const timerEl = document.getElementById("round-timer");
+  let timerLeft = null;
+  function paintTimer(){
+    if (!timerEl) return;
+    if (timerLeft === null) { timerEl.style.display = "none"; return; }
+    const m = Math.floor(timerLeft / 60), s = timerLeft % 60;
+    timerEl.textContent = (timerLeft === 0) ? "0:00 — Time's Up" : (m + ":" + String(s).padStart(2, "0"));
+    timerEl.style.display = "";
+    timerEl.style.color = timerLeft === 0 ? "#dc2626" : (timerLeft <= 30 ? "#d97706" : "");
+  }
+  setInterval(() => { if (timerLeft !== null && timerLeft > 0) { timerLeft--; paintTimer(); } }, 1000);
+  function pollTimer(){
+    fetch("{{ state_url }}", { headers: { "X-Requested-With": "fetch" } })
+      .then(r => r.json())
+      .then(s => { timerLeft = s.timer ? s.timer.seconds_left : null; paintTimer(); })
+      .catch(() => {});
+  }
+  pollTimer();
+  setInterval(pollTimer, 5000);
+
   const toast = document.getElementById("save-toast");
   let tt = null;
   function notify(msg, ok) {

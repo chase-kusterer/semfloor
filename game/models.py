@@ -51,6 +51,11 @@ class Game(models.Model):
 
     play_mode = models.CharField(max_length=12, choices=PlayMode.choices, default=PlayMode.TEAM)
 
+    # Optional per-round countdown timer (display only — the facilitator still
+    # closes the round; the clock keeps everyone honest).
+    timer_enabled = models.BooleanField(default=False)
+    timer_seconds = models.PositiveIntegerField(default=300, help_text="Countdown length once a round opens.")
+
     # --- Quality score settings ---
     class QualityMode(models.TextChoices):
         UNIFORM = "uniform", "Uniform Player Quality Score(s)"

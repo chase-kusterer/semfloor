@@ -31,7 +31,7 @@ class JoinFlowTests(TestCase):
         c = Client()
         r = c.get(f"/g/{self.game.code}/")
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Your name")
+        self.assertContains(r, "Your Name")
         self.assertContains(r, self.game.code)     # hidden code field
         self.assertNotContains(r, 'id="code"')     # no visible code input
         # Lowercase in the pasted URL still works.
@@ -176,7 +176,7 @@ class SetupWizardTests(TestCase):
         game = Game.objects.get(name="G3")
         r = self.c.get(f"/g/{game.code}/setup/")
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Student link")
+        self.assertContains(r, "Student Link")
         self.assertContains(r, f"/g/{game.code}/")
 
 

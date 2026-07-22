@@ -3,14 +3,14 @@
 {% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
 {% block content %}
   <div class="view-toggle" style="display:flex;gap:8px;margin-bottom:12px">
-    <a href="{% url 'game:console' code=game.code %}"><button type="button" class="secondary">Planner</button></a>
+    <a href="{% url 'game:console' code=game.code %}"><button type="button" class="btn secondary">Planner</button></a>
     <a href="{% url 'game:board' code=game.code %}"><button type="button">Big Board</button></a>
-    <a href="{% url 'game:recap' code=game.code %}"><button type="button" class="secondary">Recap</button></a>
+    <a href="{% url 'game:recap' code=game.code %}"><button type="button" class="btn secondary">Recap</button></a>
   </div>
 <div id="board" data-state-url="{{ state_url }}" class="board-wrap" style="margin:0 auto">
   <div class="grid two">
     <div class="card">
-      <h2>Now trading</h2>
+      <h2>Now Trading</h2>
       <div id="round-box">
         <p class="note">Waiting for the first round…</p>
       </div>

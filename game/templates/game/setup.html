@@ -18,35 +18,44 @@
   {% endif %}
 
   <div class="card">
-    <h2>Student link</h2>
+    <h2>Student Link</h2>
     <p>Post this on your course page — students click it, type their name, and pick a team:</p>
     <p><a href="{{ join_url }}" class="mono" id="join-link">{{ join_url }}</a>
-       <button type="button" class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('join-link').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy link',1500)})">Copy link</button></p>
+       <button type="button" class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('join-link').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Link',1500)})">Copy Link</button></p>
   </div>
 
   <div class="card">
     <h2>1 · Settings</h2>
     <form method="post" action="{% url 'game:setup_settings' code=game.code %}" data-autosave>
       {% csrf_token %}
-      <label for="name">Game name</label>
+      <label for="name">Game Name</label>
       <input type="text" id="name" name="name" value="{{ game.name }}">
-      <label for="code">Join code</label>
+      <label for="code">Join Code</label>
       <input type="text" id="code" name="code" value="{{ game.code }}" maxlength="8"
              pattern="[A-Za-z0-9]{1,8}" title="1–8 letters/numbers"
              style="text-transform:uppercase">
       <p class="note">Changing the code changes the student link. Locked once students have joined.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:140px"><label for="starting_budget">Budget per round</label>
+        <div style="flex:1;min-width:140px"><label for="starting_budget">Budget per Round</label>
           <input type="number" id="starting_budget" name="starting_budget" step="100" value="{{ game.starting_budget|floatformat:'0' }}"></div>
-        <div style="flex:1;min-width:120px"><label for="min_bid">Minimum bid</label>
+        <div style="flex:1;min-width:120px"><label for="min_bid">Minimum Bid</label>
           <input type="number" id="min_bid" name="min_bid" step="0.10" value="{{ game.min_bid }}"></div>
-        <div style="flex:1;min-width:120px"><label for="ad_slots">Ad slots</label>
+        <div style="flex:1;min-width:120px"><label for="ad_slots">Ad Slots</label>
           <input type="number" id="ad_slots" name="ad_slots" min="1" value="{{ game.ad_slots }}"></div>
-        <div style="flex:1;min-width:120px"><label for="max_team_size">Max team size</label>
+        <div style="flex:1;min-width:120px"><label for="max_team_size">Max Team Size</label>
           <input type="number" id="max_team_size" name="max_team_size" min="1" value="{{ game.max_team_size }}"></div>
       </div>
+      <div style="margin-top:10px">
+        <label style="font-weight:normal"><input type="checkbox" name="timer_enabled" value="1"
+               {% if game.timer_enabled %}checked{% endif %}> Round Timer</label>
+        <span style="margin-left:10px">
+          <input type="number" name="timer_seconds" min="10" max="7200" step="10"
+                 value="{{ game.timer_seconds }}" style="max-width:100px"> seconds per round</span>
+        <p class="note" style="margin:4px 0 0">When on, a countdown starts each time a round opens — shown to
+          players and on your dashboard. It's a clock, not a gate: you still close the round yourself.</p>
+      </div>
       <fieldset style="border:none;padding:0;margin-top:10px">
-        <label>Play mode</label>
+        <label>Play Mode</label>
         <label style="font-weight:normal;margin-right:14px">
           <input type="radio" name="play_mode" value="team" {% if game.play_mode == "team" %}checked{% endif %}> Team Mode</label>
         <label style="font-weight:normal">
@@ -62,10 +71,10 @@
     <h2>2 · Keywords ({{ keywords|length }})</h2>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <form method="post" action="{% url 'game:setup_starter_pack' code=game.code %}">
-        {% csrf_token %}<button type="submit" class="secondary" {% if played %}disabled{% endif %}>Load starter pack</button></form>
+        {% csrf_token %}<button type="submit" class="secondary" {% if played %}disabled{% endif %}>Load Starter Pack</button></form>
       <form method="post" action="{% url 'game:setup_keywords_clear' code=game.code %}"
             onsubmit="return confirm('Remove ALL keywords (and any pending rounds)?');">
-        {% csrf_token %}<button type="submit" class="secondary" {% if played %}disabled{% endif %}>Clear all</button></form>
+        {% csrf_token %}<button type="submit" class="secondary" {% if played %}disabled{% endif %}>Clear All</button></form>
     </div>
 
     {% if keywords %}
@@ -111,7 +120,7 @@
     {% endif %}
 
     <details style="margin-top:12px">
-      <summary style="cursor:pointer;font-weight:600">What do the asset classes mean?</summary>
+      <summary style="cursor:pointer;font-weight:600">What Do the Asset Classes Mean?</summary>
       <table style="margin-top:8px">
         {% for name, definition in asset_classes %}
           <tr><td style="white-space:nowrap;font-weight:600">{{ name }}</td><td>{{ definition }}</td></tr>
@@ -120,11 +129,11 @@
       <p class="note">Asset class is free text — it's flavor for students, not a mechanic. Use these or invent your own.</p>
     </details>
 
-    <h3 style="margin-top:16px">Import / export</h3>
+    <h3 style="margin-top:16px">Import / Export</h3>
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
       <form method="post" action="{% url 'game:setup_keywords_import' code=game.code %}" enctype="multipart/form-data">
         {% csrf_token %}
-        <label for="kwfile">Upload keywords (.csv or .xlsx)</label>
+        <label for="kwfile">Upload Keywords (.csv or .xlsx)</label>
         <input type="file" id="kwfile" name="file" accept=".csv,.xlsx,.xlsm" {% if played %}disabled{% endif %}>
         <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
           <label style="font-weight:normal"><input type="radio" name="mode" value="append" checked> Add / update</label>
@@ -140,7 +149,7 @@
       bids are mapped to game values automatically) or the CSV downloaded here (all columns round-trip:
       download, edit in Excel or Sheets, upload again).</p>
 
-    <h3 style="margin-top:16px">Add a keyword</h3>
+    <h3 style="margin-top:16px">Add a Keyword</h3>
     <form method="post" action="{% url 'game:setup_keyword_add' code=game.code %}">
       {% csrf_token %}
       <div style="display:flex;gap:12px;flex-wrap:wrap">
@@ -157,20 +166,20 @@
         <div style="flex:1;min-width:110px"><label for="reserve_price">Reserve</label>
           <input type="number" id="reserve_price" name="reserve_price" step="0.10" value="0.50"></div>
       </div>
-      <div style="margin-top:12px"><button type="submit" {% if played %}disabled{% endif %}>Add keyword</button></div>
+      <div style="margin-top:12px"><button type="submit" {% if played %}disabled{% endif %}>Add Keyword</button></div>
     </form>
   </div>
 
 
   <div class="card">
-    <h2>Quality scores</h2>
+    <h2>Quality Scores</h2>
     <form method="post" action="{% url 'game:setup_settings' code=game.code %}" data-autosave id="quality-form">
       {% csrf_token %}
       <label style="font-weight:normal;display:block;margin-bottom:6px">
         <input type="radio" name="quality_mode" value="uniform" {% if game.quality_mode == "uniform" %}checked{% endif %}>
         <strong>Uniform Player Quality Score(s)</strong> — everyone gets the same score on every keyword.</label>
       <div class="qmode qmode-uniform" style="margin:0 0 10px 26px">
-        <label for="quality_uniform">Universal quality score</label>
+        <label for="quality_uniform">Universal Quality Score</label>
         <input type="number" id="quality_uniform" name="quality_uniform" min="0" max="10" step="0.5"
                value="{{ game.quality_uniform }}" style="max-width:110px">
       </div>
@@ -204,7 +213,7 @@
     </form>
 
     <div class="qmode qmode-manual" style="margin-top:8px">
-      <h3 style="margin:8px 0">Per-team quality ranges</h3>
+      <h3 style="margin:8px 0">Per-Team Quality Ranges</h3>
       {% if human_teams %}
         <table>
           <thead><tr><th>Team</th><th style="min-width:260px">Range</th><th class="num">Min – Max</th></tr></thead>
@@ -235,19 +244,19 @@
   </div>
 
   <div class="card">
-    <h2>3 · Round schedule</h2>
+    <h2>3 · Round Schedule</h2>
     <form method="post" action="{% url 'game:setup_build_rounds' code=game.code %}" style="display:flex;gap:12px;align-items:flex-end">
       {% csrf_token %}
-      <div><label for="num_rounds">Number of rounds</label>
+      <div><label for="num_rounds">Number of Rounds</label>
         <input type="number" id="num_rounds" name="num_rounds" min="1" value="{{ game.num_rounds }}" style="max-width:120px"></div>
-      <div><label for="keywords_per_round">Keywords per round <span class="note" style="font-weight:normal">(optional)</span></label>
+      <div><label for="keywords_per_round">Keywords per Round <span class="note" style="font-weight:normal">(optional)</span></label>
         <input type="number" id="keywords_per_round" name="keywords_per_round" min="1" placeholder="e.g. 2" style="max-width:130px"></div>
       <label style="font-weight:normal;white-space:nowrap;margin-bottom:6px" title="Draw keywords from the active pool at random instead of top-to-bottom list order">
-        <input type="checkbox" name="randomize_keywords" value="1" checked> Randomize keyword selection</label>
-      <button type="submit" {% if played %}disabled{% endif %}>Build / rebuild schedule</button>
+        <input type="checkbox" name="randomize_keywords" value="1" checked> Randomize Keyword Selection</label>
+      <button type="submit" {% if played %}disabled{% endif %}>Build / Rebuild Schedule</button>
     </form>
     <p class="note">Only <strong>Active</strong> keywords are scheduled, and not all of them have to be:
-      with <strong>Randomize keyword selection</strong> on (the default) they're drawn from the active pool
+      with <strong>Randomize Keyword Selection</strong> on (the default) they're drawn from the active pool
       at random, and unticking it uses top-to-bottom list order.
       Fill <strong>both boxes</strong> for exact control (1 round × 2 per round = 1 round using just the
       first 2 active keywords). Fill only <strong>keywords per round</strong> to chunk the whole active

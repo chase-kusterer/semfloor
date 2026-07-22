@@ -1,5 +1,5 @@
 {% extends "game/base.html" %}
-{% block title %}Pick a team — {{ game.name }}  <p class="note" style="margin-top:10px">This list refreshes automatically — new teams appear within a few seconds.</p>
+{% block title %}Pick a Team — {{ game.name }}  <p class="note" style="margin-top:10px">This list refreshes automatically — new teams appear within a few seconds.</p>
   <script>
     // Light auto-refresh: reload unless the player is mid-typing a team name.
     setInterval(function () {
@@ -20,13 +20,20 @@
   </script>
 {% endblock %}
 {% block content %}
-  <h1>Pick a team</h1>
+  {% if membership %}
+    <div class="card" style="border-left:4px solid var(--accent)">
+      <p><strong>You're currently on “{{ membership.team.name }}”.</strong>
+         Picking another team below moves your seat there (your old team keeps its bids and history).
+         <a href="{% url 'game:console' code=game.code %}"><button type="button" class="secondary">Keep Playing on {{ membership.team.name }}</button></a></p>
+    </div>
+  {% endif %}
+  <h1>Pick a Team</h1>
   <p class="sub">Teams can have up to {{ game.max_team_size }} member{{ game.max_team_size|pluralize }}.
      Joining solo is fine — just create a team and start trading.</p>
 
   <div class="grid two">
     <div class="card">
-      <h2>Join an existing team</h2>
+      <h2>Join an Existing Team</h2>
       {% if teams %}
         <table>
           <thead><tr><th>Team</th><th class="num">Seats</th><th></th></tr></thead>
@@ -54,10 +61,10 @@
     </div>
 
     <div class="card">
-      <h2>Create a new team</h2>
+      <h2>Create a New Team</h2>
       <form method="post" action="{% url 'game:team_create' code=game.code %}">
         {% csrf_token %}
-        <label for="team_name">Team name</label>
+        <label for="team_name">Team Name</label>
         <input type="text" id="team_name" name="team_name" autocomplete="off" required>
         <div style="margin-top:16px"><button type="submit">Create &amp; enter</button></div>
       </form>

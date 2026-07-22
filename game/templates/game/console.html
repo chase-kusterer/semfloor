@@ -2,10 +2,22 @@
 {% block title %}{{ team.name }} — console{% endblock %}
 {% block topbar_extra %}<span class="code">{{ game.code }}</span>{% endblock %}
 {% block content %}
-  <div class="view-toggle" style="display:flex;gap:8px;margin-bottom:12px">
-    <a href="{% url 'game:console' code=game.code %}"><button type="button">Planner</button></a>
-    <a href="{% url 'game:board' code=game.code %}"><button type="button" class="secondary">Big Board</button></a>
-    {% if has_recap %}<a href="{% url 'game:recap' code=game.code %}"><button type="button" class="secondary">Recap</button></a>{% endif %}
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+    <div class="view-toggle" style="display:flex;gap:8px">
+      <a href="{% url 'game:console' code=game.code %}"><button type="button">Planner</button></a>
+      <a href="{% url 'game:board' code=game.code %}"><button type="button" class="btn secondary">Big Board</button></a>
+      {% if has_recap %}
+        <a href="{% url 'game:recap' code=game.code %}"><button type="button" class="btn secondary">Recap</button></a>
+      {% else %}
+        <button type="button" disabled title="Available after the first round is revealed">Recap</button>
+      {% endif %}
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span id="round-timer" class="mono" style="display:none;font-size:1.2em;font-weight:700"></span>
+      <span><strong>{{ membership.display_name|default:"Player" }}</strong>
+        <span class="note">on</span> <strong>{{ team.name }}</strong></span>
+      <a href="{% url 'game:team_select' code=game.code %}"><button type="button" class="btn secondary">Switch Team</button></a>
+    </div>
   </div>
 <div id="console" data-state-url="{{ state_url }}">
   <h1>{{ team.name }}</h1>
@@ -15,13 +27,13 @@
   </p>
 
   <div class="grid stats">
-    <div class="stat"><div class="label">Round budget left</div><div class="value" id="s-budget">{{ team.budget_remaining }}</div></div>
-    <div class="stat"><div class="label">Cumulative profit</div><div class="value" id="s-profit">{{ team.cumulative_profit }}</div></div>
+    <div class="stat"><div class="label">Round Budget Left</div><div class="value" id="s-budget">{{ team.budget_remaining }}</div></div>
+    <div class="stat"><div class="label">Cumulative Profit</div><div class="value" id="s-profit">{{ team.cumulative_profit }}</div></div>
     <div class="stat"><div class="label">Bids this round</div><div class="value" id="s-bid">—</div></div>
   </div>
 
   <div class="card">
-    <h2>This round</h2>
+    <h2>This Round</h2>
     <div id="round-box">
       {% if current_round %}
         <p class="note">Round {{ current_round.number }} —
@@ -38,9 +50,9 @@
         {% csrf_token %}
         <div style="overflow-x:auto"><table>
           <thead><tr><th>Keyword</th><th></th>
-            <th class="num" title="Bids below this floor are never shown — like Google's first-page bid minimum">Price floor</th>
-            {% if game.quality_show_players %}<th class="num" title="Your quality score on this keyword. Ad Rank = bid × quality, so a high score is a discount and a low one is a handicap">Your quality</th>{% endif %}
-            <th class="num" style="width:180px">Max bid per click</th></tr></thead>
+            <th class="num" title="Bids below this floor are never shown — like Google's first-page bid minimum">Price Floor</th>
+            {% if game.quality_show_players %}<th class="num" title="Your quality score on this keyword. Ad Rank = bid × quality, so a high score is a discount and a low one is a handicap">Your Quality</th>{% endif %}
+            <th class="num" style="width:180px">Max Bid per Click</th></tr></thead>
           <tbody>
             {% for kb in keyword_bids %}
               <tr>
@@ -67,12 +79,12 @@
   </div>
 
   <div class="card">
-    <h2>Your last result</h2>
+    <h2>Your Last Result</h2>
     <div id="your-result"><p class="note">Results appear here once the round is revealed.</p></div>
   </div>
 
   <div class="card">
-    <h2>Your round-by-round</h2>
+    <h2>Your Round-by-Round</h2>
     <div style="overflow-x:auto"><table>
       <thead><tr><th>Round</th><th>Keywords</th><th class="num">Spend</th>
         <th class="num">Revenue</th><th class="num">Profit</th><th class="num">Cumulative</th></tr></thead>
@@ -98,7 +110,21 @@
   // (open/close/resolve/reveal or a new round), reload so the bid form and
   // results sections match the new phase.
   const renderedRound = "{{ current_round.number|default:'none' }}:{{ current_round.status|default:'none' }}";
+  // Round Timer: state gives seconds_left; tick locally between polls.
+  let timerLeft = null;
+  const timerEl = document.getElementById("round-timer");
+  function paintTimer(){
+    if (timerLeft === null) { timerEl.style.display = "none"; return; }
+    const m = Math.floor(timerLeft / 60), s = timerLeft % 60;
+    timerEl.textContent = m + ":" + String(s).padStart(2, "0");
+    timerEl.style.display = "";
+    timerEl.style.color = timerLeft === 0 ? "#dc2626" : (timerLeft <= 30 ? "#d97706" : "");
+    if (timerLeft === 0) timerEl.textContent = "0:00 — Time's Up";
+  }
+  setInterval(() => { if (timerLeft !== null && timerLeft > 0) { timerLeft--; paintTimer(); } }, 1000);
   function render(s){
+    timerLeft = s.timer ? s.timer.seconds_left : null;
+    paintTimer();
     const nowRound = s.current_round ? (s.current_round.number + ":" + s.current_round.status) : "none:none";
     if (nowRound !== renderedRound) { window.location.reload(); return; }
     if (s.you){

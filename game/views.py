@@ -88,27 +88,26 @@ def join_submit(request):
 
 
 def team_select(request, code):
-    """Choose an existing team with an open seat, or create a new one."""
+    """
+    Choose a team with an open seat, or create a new one. Seated players can
+    still open this page to SWITCH teams — being cookied onto the wrong team
+    must never be a trap.
+    """
     game = get_object_or_404(Game, code=code)
     membership = _current_membership(request, game)
-    if membership is not None:
-        # Already seated — go straight to the console.
-        return redirect("game:console", code=game.code)
-
     teams = [
         {"obj": t, "count": t.member_count, "open": t.has_open_seat()}
         for t in game.teams.filter(is_bot=False)
     ]
-    return render(request, "game/teams.html", {"game": game, "teams": teams})
+    return render(request, "game/teams.html", {
+        "game": game, "teams": teams, "membership": membership,
+    })
 
 
 @require_POST
 def team_create(request, code):
     """Create a new team and seat the current session as its first member."""
     game = get_object_or_404(Game, code=code)
-    if _current_membership(request, game) is not None:
-        return redirect("game:console", code=game.code)
-
     name = (request.POST.get("team_name") or "").strip()
     if not name:
         messages.error(request, "Please enter a team name.")
@@ -118,29 +117,45 @@ def team_create(request, code):
         return redirect("game:team_select", code=game.code)
 
     team = Team.objects.create(game=game, name=name, budget_remaining=game.starting_budget)
-    TeamMember.objects.create(
-        game=game, team=team, session_key=_session_key(request),
-        display_name=request.session.get("display_name", ""),
-    )
+    membership = _current_membership(request, game)
+    if membership is not None:
+        membership.team = team   # switching by creating a fresh team
+        membership.save()
+    else:
+        TeamMember.objects.create(
+            game=game, team=team, session_key=_session_key(request),
+            display_name=request.session.get("display_name", ""),
+        )
     return redirect("game:console", code=game.code)
 
 
 @require_POST
 def team_join(request, code):
-    """Join an existing team if it still has an open seat (enforces max_team_size)."""
+    """
+    Join a team with an open seat. If this session is already seated somewhere,
+    the seat MOVES — that's how a player stuck on the wrong team fixes it.
+    """
     game = get_object_or_404(Game, code=code)
-    if _current_membership(request, game) is not None:
-        return redirect("game:console", code=game.code)
-
     team = get_object_or_404(Team, game=game, pk=request.POST.get("team_id"), is_bot=False)
+    membership = _current_membership(request, game)
+    if membership is not None and membership.team_id == team.id:
+        return redirect("game:console", code=game.code)
     if not team.has_open_seat():
         messages.error(request, f"“{team.name}” is full ({game.max_team_size} max). Pick another team.")
         return redirect("game:team_select", code=game.code)
 
-    TeamMember.objects.create(
-        game=game, team=team, session_key=_session_key(request),
-        display_name=request.session.get("display_name", ""),
-    )
+    if membership is not None:
+        old = membership.team.name
+        membership.team = team
+        if not membership.display_name:
+            membership.display_name = request.session.get("display_name", "")
+        membership.save()
+        messages.success(request, f"Moved from “{old}” to “{team.name}”.")
+    else:
+        TeamMember.objects.create(
+            game=game, team=team, session_key=_session_key(request),
+            display_name=request.session.get("display_name", ""),
+        )
     return redirect("game:console", code=game.code)
 
 
@@ -614,6 +629,14 @@ def setup_settings(request, code):
     game.quality_max = _f("quality_max", game.quality_max)
     if game.quality_min > game.quality_max:
         game.quality_min, game.quality_max = game.quality_max, game.quality_min
+    if "timer_enabled" in request.POST:
+        game.timer_enabled = request.POST["timer_enabled"] in ("1", "true", "on")
+    ts = request.POST.get("timer_seconds")
+    if ts:
+        try:
+            game.timer_seconds = max(10, min(7200, int(ts)))
+        except (TypeError, ValueError):
+            pass
     if "quality_apply_bots" in request.POST:
         game.quality_apply_bots = request.POST["quality_apply_bots"] in ("1", "true", "on")
     if "quality_show_players" in request.POST:
@@ -743,8 +766,8 @@ def fac_results_export(request, code):
     game = get_object_or_404(Game, code=code)
     out = _io.StringIO()
     w = _csv.writer(out)
-    w.writerow(["Round", "Keyword", "Team", "Bot", "Bid amount", "Quality score",
-                "Ad rank", "Next highest bid",
+    w.writerow(["Round", "Keyword", "Team", "Bot", "Bid Amount", "Quality Score",
+                "Ad Rank", "Next Highest Bid",
                 "Position", "CPC", "Impressions", "Clicks", "Spend", "Conversions",
                 "Revenue", "Profit", "ROAS"])
     results = (RoundResult.objects.filter(round__game=game)

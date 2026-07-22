@@ -140,7 +140,7 @@ class KeywordSetupEndpointTests(TestCase):
 
     def test_setup_page_shows_definitions_and_editable_rows(self):
         r = self.c.get(f"/g/{self.game.code}/setup/")
-        self.assertContains(r, "What do the asset classes mean?")
+        self.assertContains(r, "What Do the Asset Classes Mean?")
         self.assertContains(r, "Branded blue chip")
         self.assertContains(r, 'name="conversion_rate"')
         self.assertContains(r, "Download CSV")

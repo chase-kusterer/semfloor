@@ -439,6 +439,7 @@ def setup_home(request):
         kwargs = dict(
             name=(request.POST.get("name") or "SEM Trading Floor").strip() or "SEM Trading Floor",
             starting_budget=_dec(request.POST.get("starting_budget"), Decimal("10000.00")),
+            min_bid=max(Decimal("0.00"), _dec(request.POST.get("min_bid"), Decimal("0.00"))),
             max_team_size=_int(request.POST.get("max_team_size"), 4),
         )
         if custom_code:
@@ -677,7 +678,9 @@ def setup_build_rounds(request, code):
     """Split the keywords across N rounds, evenly, in keyword order."""
     game = get_object_or_404(Game, code=code)
     num_rounds = _int(request.POST.get("num_rounds"), game.num_rounds)
-    rounds = services.build_rounds(game, num_rounds)
+    kpr_raw = (request.POST.get("keywords_per_round") or "").strip()
+    keywords_per_round = _int(kpr_raw, 0) if kpr_raw else None
+    rounds = services.build_rounds(game, num_rounds, keywords_per_round=keywords_per_round)
     if rounds is None:
         if game.rounds.exclude(status=Round.Status.PENDING).exists():
             messages.error(request, "Rounds have been played — reset the game before rebuilding the schedule.")

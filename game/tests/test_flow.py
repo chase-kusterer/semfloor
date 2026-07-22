@@ -178,3 +178,37 @@ class SetupWizardTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Student link")
         self.assertContains(r, f"/g/{game.code}/")
+
+
+class RoundScheduleShapingTests(TestCase):
+    def setUp(self):
+        User.objects.create_superuser("prof2", "p2@example.com", "pw")
+        self.c = Client()
+        self.c.force_login(User.objects.get(username="prof2"))
+        self.c.post("/setup/", {"name": "Shaped", "code": "SHAPE"})
+        self.game = Game.objects.get(code="SHAPE")
+        self.c.post("/g/SHAPE/setup/keywords/starter/")  # 8 keywords
+
+    def test_keywords_per_round_chunks_in_order(self):
+        self.c.post("/g/SHAPE/setup/rounds/build/", {"num_rounds": "3",
+                                                     "keywords_per_round": "3"})
+        counts = [r.keywords.count() for r in self.game.rounds.order_by("number")]
+        self.assertEqual(counts, [3, 3, 2])   # 8 kws at 3/round -> 3 rounds, kpr wins
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.num_rounds, 3)
+        self.c.post("/g/SHAPE/setup/rounds/build/", {"num_rounds": "",
+                                                     "keywords_per_round": "2"})
+        counts = [r.keywords.count() for r in self.game.rounds.order_by("number")]
+        self.assertEqual(counts, [2, 2, 2, 2])
+
+    def test_blank_keywords_per_round_falls_back_to_num_rounds(self):
+        self.c.post("/g/SHAPE/setup/rounds/build/", {"num_rounds": "4",
+                                                     "keywords_per_round": ""})
+        counts = [r.keywords.count() for r in self.game.rounds.order_by("number")]
+        self.assertEqual(counts, [2, 2, 2, 2])
+
+    def test_min_bid_settable_at_creation(self):
+        self.c.post("/setup/", {"name": "MB", "code": "MB1", "min_bid": "0.25"})
+        self.assertEqual(Game.objects.get(code="MB1").min_bid, Decimal("0.25"))
+        self.c.post("/setup/", {"name": "MB0", "code": "MB0"})  # blank -> 0
+        self.assertEqual(Game.objects.get(code="MB0").min_bid, Decimal("0.00"))

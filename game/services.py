@@ -143,11 +143,15 @@ def configure_bots(game, count: int, aggressiveness: float):
 
 # --- round schedule ---------------------------------------------------------
 
-def build_rounds(game, num_rounds: int):
+def build_rounds(game, num_rounds: int | None = None, keywords_per_round: int | None = None):
     """
-    (Re)build the round schedule: split the game's keywords across `num_rounds`
-    pending rounds, in keyword order, as evenly as possible (earlier rounds get the
-    extra keyword when it doesn't divide evenly).
+    (Re)build the round schedule from the game's keywords, in keyword order.
+
+    Two ways to shape it:
+      - `keywords_per_round`: chunk that many keywords into each round; the number
+        of rounds follows (last round takes the remainder). Wins if both are given.
+      - `num_rounds`: split the keywords across that many rounds as evenly as
+        possible (earlier rounds get the extra keyword when it doesn't divide).
 
     Refuses (returns None) if any round has already been played, to protect results;
     reset the game first. Existing pending rounds are replaced.
@@ -155,21 +159,31 @@ def build_rounds(game, num_rounds: int):
     if game.rounds.exclude(status=Round.Status.PENDING).exists():
         return None
     keywords = list(game.keywords.all())
-    if not keywords or num_rounds < 1:
+    if not keywords:
         return None
-    num_rounds = min(num_rounds, len(keywords))
+
+    if keywords_per_round and keywords_per_round >= 1:
+        keywords_per_round = min(keywords_per_round, len(keywords))
+        chunks = [keywords[i:i + keywords_per_round]
+                  for i in range(0, len(keywords), keywords_per_round)]
+    else:
+        if not num_rounds or num_rounds < 1:
+            return None
+        num_rounds = min(num_rounds, len(keywords))
+        base, extra = divmod(len(keywords), num_rounds)
+        chunks, idx = [], 0
+        for n in range(1, num_rounds + 1):
+            take = base + (1 if n <= extra else 0)
+            chunks.append(keywords[idx:idx + take])
+            idx += take
 
     game.rounds.all().delete()
-    base, extra = divmod(len(keywords), num_rounds)
-    idx = 0
     rounds = []
-    for n in range(1, num_rounds + 1):
-        take = base + (1 if n <= extra else 0)
+    for n, chunk in enumerate(chunks, start=1):
         rnd = Round.objects.create(game=game, number=n)
-        rnd.keywords.set(keywords[idx:idx + take])
-        idx += take
+        rnd.keywords.set(chunk)
         rounds.append(rnd)
-    game.num_rounds = num_rounds
+    game.num_rounds = len(rounds)
     game.save()
     return rounds
 

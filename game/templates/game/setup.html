@@ -150,10 +150,14 @@
       {% csrf_token %}
       <div><label for="num_rounds">Number of rounds</label>
         <input type="number" id="num_rounds" name="num_rounds" min="1" value="{{ game.num_rounds }}" style="max-width:120px"></div>
+      <div><label for="keywords_per_round">Keywords per round <span class="note" style="font-weight:normal">(optional)</span></label>
+        <input type="number" id="keywords_per_round" name="keywords_per_round" min="1" placeholder="e.g. 2" style="max-width:130px"></div>
       <button type="submit" {% if played %}disabled{% endif %}>Build / rebuild schedule</button>
     </form>
-    <p class="note">Keywords are split evenly across the rounds in the order listed above
-      (e.g. 8 keywords over 3 rounds → 3 / 3 / 2). Rebuild any time before the first round opens.</p>
+    <p class="note">Fill either box. <strong>Keywords per round</strong> chunks the list in order and the
+      number of rounds follows (8 keywords at 2 per round → 4 rounds; it wins if both are filled).
+      <strong>Number of rounds</strong> splits the keywords as evenly as possible
+      (8 keywords over 3 rounds → 3 / 3 / 2). Rebuild any time before the first round opens.</p>
 
     {% if rounds %}
       <table style="margin-top:12px">
